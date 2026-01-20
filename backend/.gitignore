@@ -1,0 +1,14 @@
+# Folder library 
+node_modules/
+
+# File konfigurasi rahasia 
+.env
+
+# Log error
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# File sistem 
+.DS_Store
+Thumbs.db
