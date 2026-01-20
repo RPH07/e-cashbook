@@ -12,8 +12,17 @@ export default function Dashboard() {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const screenWidth = Dimensions.get('window').width;
     const handleLogout = async () => {
-        await SecureStore.deleteItemAsync('userToken');
-        router.replace('/');
+        try {
+            await SecureStore.deleteItemAsync('userToken');
+            
+            if (router.canDismiss()) {
+                router.dismissAll();
+            }
+            router.replace('/login'); 
+            
+        } catch (error) {
+            console.error("Gagal logout:", error);
+        }
     };
 
     // Data Dummy Saldo
