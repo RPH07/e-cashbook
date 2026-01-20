@@ -60,8 +60,13 @@ export default function LoginScreen() {
       await new Promise(resolve => setTimeout(resolve, 1500));
       const dummyToken = "abc-123-token-rahasia-dari-backend"
 
+      let role = 'viewer';
+      if(email.toLowerCase().includes('admin')) role='admin';
+      if(email.toLowerCase().includes('bendahara')) role='bendahara';
+      if(email.toLowerCase().includes('auditor')) role='auditor';
       // simpen token
       await SecureStore.setItemAsync('userToken', dummyToken);
+      await SecureStore.setItemAsync('userRole', role);
       setEmail('');
       setPassword('');
       router.replace('/(tabs)');
