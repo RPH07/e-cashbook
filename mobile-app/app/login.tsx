@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import FloatingInput from '@/components/FloatingInput';
@@ -7,8 +7,32 @@ import FloatingInput from '@/components/FloatingInput';
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState({email: '', password: ''});
 
+  const validate = () => {
+    let valid = true;
+    let newErrors = {email: '', password: ''};
+
+    if (!email) {
+      newErrors.email = 'Email Wajib diisi!';
+      valid = false;
+    } else if (!/\S+@\S+\.\S+/.test(email)) { 
+      newErrors.email = 'Format email tidak sesuai!';
+      valid = false;
+    }
+
+    if (!password) {
+      newErrors.password = 'Password wajib diisi!';
+      valid = false;
+    } else if (password.length < 6) {
+      newErrors.password = 'Password minimal 6 karakter';
+      valid = false;
+    }
+
+    setErrors(newErrors);
+    return valid;
+  }
   // cek token pas app mulai
   useEffect(() => {
     checkloginStatus();
@@ -31,16 +55,17 @@ export default function LoginScreen() {
   // Simulasi Role 
   const handleLogin = async() => {
     // Validasi dummy
-    if (email && password) {
+    if (validate()) {
+      setIsLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 1500));
       const dummyToken = "abc-123-token-rahasia-dari-backend"
 
       // simpen token
       await SecureStore.setItemAsync('userToken', dummyToken);
-
+      setEmail('');
+      setPassword('');
       router.replace('/(tabs)');
-    } else {
-      Alert.alert('Eror', 'Email dan Password harus diisi!');
-    }
+    } 
   };
 
   if (isLoading) {
@@ -61,8 +86,10 @@ export default function LoginScreen() {
           style={styles.input}
           label="Email"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => {setEmail(text); setErrors({...errors, email: ''});}}
           autoCapitalize="none"
+          keyboardType='email-address'
+          errorText={errors.email}
         />
 
         <FloatingInput
@@ -70,7 +97,8 @@ export default function LoginScreen() {
           label="Password"
           secureTextEntry
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {setPassword(text); setErrors({...errors, password: ''});}}
+          errorText={errors.password}
         />
 
         <TouchableOpacity style={styles.button} onPress={handleLogin}>
