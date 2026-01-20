@@ -151,7 +151,7 @@ export default function Dashboard() {
             {(userRole === 'admin' || userRole === 'bendahara') && (
                 <TouchableOpacity
                     style={styles.fab}
-                    onPress={() => alert("Halaman Tambah Transaksi")}
+                    onPress={() => router.push('/transaction/create')}
                 >
                     <Ionicons name="add" size={30} color="white" />
                 </TouchableOpacity>
