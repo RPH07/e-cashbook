@@ -17,12 +17,12 @@ export default function Dashboard() {
         try {
             await SecureStore.deleteItemAsync('userToken');
             await SecureStore.deleteItemAsync('userRole');
-            
+
             if (router.canDismiss()) {
                 router.dismissAll();
             }
-            router.replace('/login'); 
-            
+            router.replace('/login');
+
         } catch (error) {
             console.error("Gagal logout:", error);
         }
@@ -49,9 +49,9 @@ export default function Dashboard() {
     ];
 
     useEffect(() => {
-        const loadRole = async () =>{
+        const loadRole = async () => {
             const storedRole = await SecureStore.getItemAsync('userRole');
-            if(storedRole) {
+            if (storedRole) {
                 setUserRole(storedRole as UserRole);
             }
         };
@@ -59,13 +59,13 @@ export default function Dashboard() {
     }, [])
 
     return (
-        <View style={{flex: 1}}>
+        <View style={{ flex: 1 }}>
             <ScrollView style={styles.container}>
                 {/* Header Area */}
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>E-CashBook</Text>
                     <View style={styles.headerRight}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => alert('Todo: Buat fitur Notifikasi')}
                         >
                             <Ionicons name="notifications-outline" size={24} color="white" />
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        zIndex: 1 
+        zIndex: 1
     },
     headerTitle: { color: 'white', fontSize: 20, fontWeight: 'bold' },
     headerRight: {
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
         borderRadius: 15,
         alignItems: 'center',
         elevation: 3,
-        zIndex: 10  
+        zIndex: 10
     },
 
     dropdownButton: {
@@ -213,12 +213,12 @@ const styles = StyleSheet.create({
     },
     dropdownMenu: {
         position: 'absolute',
-        top: 60, 
+        top: 60,
         backgroundColor: 'white',
         width: '80%',
         borderRadius: 10,
         padding: 5,
-        elevation: 5, 
+        elevation: 5,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
