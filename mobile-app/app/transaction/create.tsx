@@ -7,11 +7,14 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import FloatingInput from '@/components/FloatingInput';
+import { useTransaction } from '../../context/TransactionContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // import { HeaderTitle } from '@react-navigation/elements';
 
 type TransactionType = 'pemasukan' | 'pengeluaran';
 
 export default function CreateTransaction() {
+    const insets = useSafeAreaInsets();
     const [type, setType] = useState<TransactionType>('pengeluaran');
     const [date, setDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -20,6 +23,7 @@ export default function CreateTransaction() {
     const [account, setAccount] = useState('giro');
     const [note, setNote] = useState('');
     const [image, setImage] = useState<string | null>(null);
+    const {addTransaction} = useTransaction();
 
     const themeColor = type === 'pemasukan' ? '#2e7d32' : '#c62828';
 
@@ -45,7 +49,7 @@ export default function CreateTransaction() {
         }
 
         let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             allowsEditing: true,
             aspect: [4, 3],
             quality: 0.5,
@@ -61,6 +65,20 @@ export default function CreateTransaction() {
             Alert.alert("Nominal dan Kategori wajib diisi ya!");
             return;
         }
+
+        const newTransaction = {
+            id: Date.now().toString(),
+            type: type,
+            amount: parseFloat(amount),
+            category: category,
+            date: date.toISOString(),
+            note: note,
+            account: account,
+            imageUri: image
+        };
+
+        addTransaction(newTransaction);
+
 
         Alert.alert("Berhasil!", `Transaksi ${type} sebesar Rp${amount} disimpan!`);
         router.back();
@@ -162,12 +180,12 @@ export default function CreateTransaction() {
                         onChangeText={setNote}
                         multiline
                         numberOfLines={3}
-                        style={{ height: 100, marginTop: 20 }} // Custom height buat textarea
+                        style={{ height: 100, marginTop: 20 }}
                     />
                 </View>
             </ScrollView>
 
-            <View style={styles.footer}>
+            <View style={[styles.footer, {paddingBottom: insets.bottom + 20}]}>
                 <TouchableOpacity
                     style={[styles.saveButton, { backgroundColor: themeColor }]}
                     onPress={handleSave}
