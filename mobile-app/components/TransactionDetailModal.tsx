@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
     Modal, View, Text, StyleSheet, TouchableOpacity,
-    Image, ScrollView, Dimensions
+    Image, ScrollView, Dimensions, PanResponder, Animated,
+    TouchableWithoutFeedback, Easing
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Transaction } from '@/components/TransactionCard';
@@ -12,86 +13,161 @@ interface Props {
     transaction: Transaction | null;
 }
 
-const { width } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CLOSE_THRESHOLD = SCREEN_HEIGHT * 0.25;
+
 const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction }) => {
-    if (!transaction) return null;
+    const panY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+    const [showModal, setShowModal] = useState(visible);
+
+    useEffect(() => {
+        if (visible) {
+            setShowModal(true);
+            Animated.spring(panY, {
+                toValue: 0,
+                useNativeDriver: true,
+                bounciness: 8,
+                speed: 12
+            }).start();
+        }
+    }, [panY, visible]);
+
+    const closeModalAnimated = () => {
+        Animated.timing(panY, {
+            toValue: SCREEN_HEIGHT,
+            duration: 300,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.ease)
+        }).start(() => {
+            setShowModal(false);
+            onClose();
+        });
+    };
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => {
+                return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && gestureState.dy > 0;
+            },
+
+            onPanResponderMove: Animated.event(
+                [null, { dy: panY }],
+                { useNativeDriver: false }
+            ),
+
+            onPanResponderRelease: (_, gestureState) => {
+                if (gestureState.dy > CLOSE_THRESHOLD || gestureState.vy > 1.5) {
+                    closeModalAnimated();
+                } else {
+                    Animated.spring(panY, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                        bounciness: 10
+                    }).start();
+                }
+            },
+        })
+    ).current;
+
+    if (!transaction || !showModal) return null;
 
     const isIncome = transaction.type === 'pemasukan';
     const color = isIncome ? '#2e7d32' : '#c62828';
 
     const formattedAmount = new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0,
+        style: 'currency', currency: 'IDR', minimumFractionDigits: 0
     }).format(transaction.amount);
 
     const formattedDate = new Date(transaction.date).toLocaleDateString('id-ID', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     });
 
+    const animatedStyle = {
+        transform: [{ translateY: panY }]
+    };
+
     return (
         <Modal
-            visible={visible}
-            animationType='slide'
+            visible={showModal}
             transparent={true}
-            onRequestClose={onClose}
+            animationType="none"
+            onRequestClose={closeModalAnimated}
         >
-            <View style={styles.overlay}>
-                <View style={styles.modalContainer} >
-                    <View style={styles.header} >
-                        <Text style={styles.headerTitle}>Detail Transaksi</Text>
-                        <TouchableOpacity onPress={onClose} >
-                            <Ionicons name="close" size={24} color="#333" />
-                        </TouchableOpacity>
-                    </View>
-                    <ScrollView contentContainerStyle={styles.content} >
-                        <View style={[styles.amountBox, { backgroundColor: isIncome ? '#e8f5e9' : '#ffebee' }]} >
-                            <Text style={styles.labelAmount} >{isIncome ? 'Uang Masuk' : 'Uang Keluar'}</Text>
-                            <Text style={styles.amountText} >{formattedAmount}</Text>
-                        </View>
-                        <View style={styles.infoRow} >
-                            <View style={styles.infoItem}>
-                                <Text style={styles.label} >Tanggal</Text>
-                                <Text style={styles.value} >{formattedDate}</Text>
-                            </View>
-                            <View style={[styles.infoItem, {alignItems: 'flex-end'}]} >
-                                <Text style={styles.label} >Akun</Text>
-                                <Text style={[styles.value, {textAlign: 'right'}]} >{transaction.account}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.infoRow} >
-                            <View style={styles.infoItem}>
-                                <Text style={styles.label} >Kategori</Text>
-                                <Text style={styles.value} >{transaction.category}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.section}>
-                            <Text style={styles.label}>Catatan / Keterangan</Text>
-                            <View style={styles.noteBox}>
-                                <Text style={styles.noteText}>
-                                    {transaction.note ? transaction.note : '- Tidak ada catatan -'}
-                                </Text>
-                            </View>
-                        </View>
-                        {transaction.imageUri && (
-                            <View style={styles.section} >
-                                <Text style={styles.label}>Bukti Transaksi</Text>
-                                <Image
-                                    source={{ uri: transaction.imageUri }}
-                                    style={styles.proofImage}
-                                />
-                            </View>
-                        )}
-                    </ScrollView>
-                    <View style={styles.footer}>
-                        <TouchableOpacity style={styles.deleteButton} onPress={() => alert('Todo: buat fitur deleted')}>
-                            <Ionicons name="trash-outline" size={20} color="#c62828" />
-                            <Text style={{ color: '#c62828', marginLeft: 5 }}>Hapus</Text>
-                        </TouchableOpacity>
-                    </View>
+            <TouchableOpacity
+                style={styles.overlay}
+                activeOpacity={1}
+                onPress={closeModalAnimated}
+            >
+                <TouchableWithoutFeedback>
+                    <Animated.View
+                        style={[styles.modalContainer, animatedStyle]}
+                    >
 
-                </View>
-            </View>
+                        <View style={styles.header} {...panResponder.panHandlers}>
+                            <View style={styles.dragHandle} />
+                            <View style={styles.headerContent}>
+                                <Text style={styles.headerTitle}>Detail Transaksi</Text>
+                                <TouchableOpacity onPress={closeModalAnimated}>
+                                    <Ionicons name="close" size={24} color="#333" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        <ScrollView contentContainerStyle={styles.content} bounces={false}>
+                            <View style={[styles.amountBox, { backgroundColor: isIncome ? '#e8f5e9' : '#ffebee' }]}>
+                                <Text style={styles.labelAmount}>{isIncome ? 'Uang Masuk' : 'Uang Keluar'}</Text>
+                                <Text style={[styles.amountText, { color: color }]}>{formattedAmount}</Text>
+                            </View>
+
+                            <View style={styles.infoRow}>
+                                <View style={styles.infoItem}>
+                                    <Text style={styles.label}>Tanggal</Text>
+                                    <Text style={styles.value}>{formattedDate}</Text>
+                                </View>
+                                <View style={styles.infoItem}>
+                                    <Text style={styles.label}>Akun</Text>
+                                    <Text style={styles.value}>{transaction.account}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.infoRow}>
+                                <View style={styles.infoItem}>
+                                    <Text style={styles.label}>Kategori</Text>
+                                    <Text style={styles.value}>{transaction.category}</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.section}>
+                                <Text style={styles.label}>Catatan / Keterangan</Text>
+                                <View style={styles.noteBox}>
+                                    <Text style={styles.noteText}>
+                                        {transaction.note ? transaction.note : '- Tidak ada catatan -'}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {transaction.imageUri && (
+                                <View style={styles.section}>
+                                    <Text style={styles.label}>Bukti Struk</Text>
+                                    <Image
+                                        source={{ uri: transaction.imageUri }}
+                                        style={styles.proofImage}
+                                    />
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        <View style={styles.footer}>
+                            <TouchableOpacity style={styles.deleteButton} onPress={() => alert('Fitur Hapus belum dibuat')}>
+                                <Ionicons name="trash-outline" size={20} color="#c62828" />
+                                <Text style={{ color: '#c62828', marginLeft: 5 }}>Hapus</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                    </Animated.View>
+                </TouchableWithoutFeedback>
+            </TouchableOpacity>
         </Modal>
     );
 };
@@ -108,63 +184,50 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 20,
         height: '85%',
         width: '100%',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 10,
     },
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 20,
+        padding: 10,
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
+        alignItems: 'center',
+        backgroundColor: 'white',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+    },
+    dragHandle: {
+        width: 40,
+        height: 5,
+        backgroundColor: '#ddd',
+        borderRadius: 5,
+        marginBottom: 10,
+    },
+    headerContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        paddingHorizontal: 10,
+        alignItems: 'center'
     },
     headerTitle: { fontSize: 18, fontWeight: 'bold' },
     content: { padding: 20, paddingBottom: 50 },
-
-    amountBox: {
-        alignItems: 'center',
-        padding: 20,
-        borderRadius: 12,
-        marginBottom: 20,
-    },
+    amountBox: { alignItems: 'center', padding: 20, borderRadius: 12, marginBottom: 20 },
     labelAmount: { fontSize: 14, color: '#666', marginBottom: 5 },
     amountText: { fontSize: 24, fontWeight: 'bold' },
-
-    infoRow: { flexDirection: 'row', marginBottom: 15, gap: 20 },
+    infoRow: { flexDirection: 'row', marginBottom: 15 },
     infoItem: { flex: 1 },
     label: { fontSize: 12, color: '#888', marginBottom: 4 },
     value: { fontSize: 16, fontWeight: '500', color: '#333' },
-
     section: { marginTop: 15 },
-    noteBox: {
-        backgroundColor: '#f9f9f9',
-        padding: 15,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#eee',
-    },
+    noteBox: { backgroundColor: '#f9f9f9', padding: 15, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
     noteText: { color: '#444', lineHeight: 22 },
-
-    proofImage: {
-        width: '100%',
-        height: 300,
-        borderRadius: 10,
-        marginTop: 10,
-        resizeMode: 'contain',
-        backgroundColor: '#000'
-    },
-
-    footer: {
-        padding: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#eee',
-        flexDirection: 'row',
-        justifyContent: 'center'
-    },
-    deleteButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 10,
-    }
+    proofImage: { width: '100%', height: 300, borderRadius: 10, marginTop: 10, resizeMode: 'contain', backgroundColor: '#000' },
+    footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#eee', flexDirection: 'row', justifyContent: 'center' },
+    deleteButton: { flexDirection: 'row', alignItems: 'center', padding: 10 }
 });
 
 export default TransactionDetailModal;
