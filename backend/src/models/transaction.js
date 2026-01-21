@@ -14,6 +14,9 @@ module.exports = (sequelize, DataTypes) => {
   Transaction.init({
     date: { type: DataTypes.DATEONLY, allowNull: false },
     amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
+    balance_before: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0.00 },
+    balance_after: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0.00 },
+    reference_id: { type: DataTypes.STRING, allowNull: true },
     type: { type: DataTypes.ENUM('income', 'expense', 'transfer'), allowNull: false },
     description: DataTypes.TEXT,
     evidence_link: DataTypes.STRING,
