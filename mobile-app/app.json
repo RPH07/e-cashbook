@@ -40,7 +40,13 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Izinkan E-CashBook mengakses galeri untuk upload bukti transaksi.",
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
