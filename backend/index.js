@@ -1,12 +1,35 @@
 require('dotenv').config();
 const express = require('express');
 const { sequelize } = require('./src/models'); // Memanggil "Manajer" database
-
+const authRoutes = require('./src/routes/authRoutes');
+const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Mengaktifkan CORS
+app.use(cors());
+
 // Middleware agar backend bisa baca input JSON
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Middleware untuk logging body request (untuk debugging)
+app.use((req, res, next) => {
+  console.log('--- BODY AFTER JSON PARSER ---');
+  console.log(req.body);
+  next();
+});
+
+// Rute debug untuk menampilkan headers dan body request
+app.post('/_debug', (req, res) => {
+  res.json({
+    headers: req.headers,
+    body: req.body
+  });
+});
+
+// Rute Auth
+app.use('/api/auth', authRoutes);
 
 // Tes rute utama
 app.get('/', (req, res) => {

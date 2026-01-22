@@ -17,6 +17,20 @@ module.exports = {
         type: Sequelize.DECIMAL(15, 2),
         allowNull: false
       },
+      balance_before: { 
+        type: Sequelize.DECIMAL(15, 2),
+        allowNull: false,
+        defaultValue: 0.00
+      },
+      balance_after: { 
+        type: Sequelize.DECIMAL(15, 2),
+        allowNull: false,
+        defaultValue: 0.00
+      },
+      reference_id: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
       type: {
         type: Sequelize.ENUM('income', 'expense', 'transfer'),
         allowNull: false
