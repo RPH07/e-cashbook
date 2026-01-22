@@ -125,9 +125,9 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                                     <Text style={styles.label}>Tanggal</Text>
                                     <Text style={styles.value}>{formattedDate}</Text>
                                 </View>
-                                <View style={styles.infoItem}>
+                                <View style={[styles.infoItem, { alignItems: 'flex-end' }]}>
                                     <Text style={styles.label}>Akun</Text>
-                                    <Text style={styles.value}>{transaction.account}</Text>
+                                    <Text style={[styles.value, { textAlign: 'right' }]}>{transaction.account}</Text>
                                 </View>
                             </View>
 
