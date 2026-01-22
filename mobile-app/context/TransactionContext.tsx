@@ -4,6 +4,8 @@ import { Transaction } from '@/components/TransactionCard';
 interface TransactionContextType {
     transactions: Transaction[];
     addTransaction: (tx: Transaction) => void;
+    deleteTransaction: (id: string) => void;
+    updateTransaction: (tx: Transaction) => void;
 }
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
@@ -15,8 +17,18 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         setTransactions((prev) => [tx, ...prev]);
     };
 
+    const deleteTransaction = (id: string) => {
+        setTransactions((prev) => prev.filter((item) => item.id !== id));
+    };
+
+    const updateTransaction = (updatedTx: Transaction) => {
+        setTransactions((prev) =>
+            prev.map((item) => (item.id === updatedTx.id ? updatedTx : item))
+        );
+    };
+
     return (
-        <TransactionContext.Provider value={{ transactions, addTransaction }}>
+        <TransactionContext.Provider value={{ transactions, addTransaction, deleteTransaction, updateTransaction }}>
             {children}
         </TransactionContext.Provider>
     );
