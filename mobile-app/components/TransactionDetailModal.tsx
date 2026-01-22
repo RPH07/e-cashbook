@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Modal, View, Text, StyleSheet, TouchableOpacity,
-    Image, ScrollView, Dimensions, PanResponder, Animated, TouchableWithoutFeedback, Easing
+    Image, ScrollView, Dimensions, PanResponder, Animated, TouchableWithoutFeedback, Easing,
+    Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Transaction } from '@/components/TransactionCard';
+import { router } from 'expo-router';
+import { useTransaction } from '@/context/TransactionContext';
 
 interface Props {
     visible: boolean;
@@ -16,6 +19,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CLOSE_THRESHOLD = SCREEN_HEIGHT * 0.25;
 
 const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction }) => {
+    const { deleteTransaction } = useTransaction();
     const panY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const [showModal, setShowModal] = useState(false);
     const backdropOpacity = panY.interpolate({
@@ -34,8 +38,13 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                 bounciness: 6,
                 speed: 14
             }).start();
+        } else {
+            if (showModal) {
+                setShowModal(false);
+                panY.setValue(SCREEN_HEIGHT);
+            }
         }
-    }, [panY, visible]);
+    }, [visible]);
 
     const closeModalAnimated = () => {
         Animated.timing(panY, {
@@ -94,6 +103,35 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
     const animatedStyle = {
         transform: [{ translateY: panY }]
     }
+
+    const handleDelete = () => {
+        if (!transaction) return;
+        
+        Alert.alert(
+            "Hapus Transaksi?",
+            "Yakin mau hapus data ini? data tidak bisa di kembalikan.",
+            [
+                { text: "Batal", style: "cancel" },
+                { 
+                    text: "Hapus", 
+                    style: "destructive",
+                    onPress: () => {
+                        deleteTransaction(transaction.id);
+                        closeModalAnimated(); 
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleEdit = () => {
+        if (!transaction) return;
+        onClose();
+        router.push({
+            pathname: '/transaction/create',
+            params: { id: transaction.id }
+        });
+    };
 
     return (
         <Modal
@@ -167,9 +205,14 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                     </ScrollView>
 
                     <View style={styles.footer}>
-                        <TouchableOpacity style={styles.deleteButton} onPress={() => alert('Todo: buat fitur deleted')}>
+                        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
                             <Ionicons name="trash-outline" size={20} color="#c62828" />
                             <Text style={{ color: '#c62828', marginLeft: 5 }}>Hapus</Text>
+                        </TouchableOpacity>
+                        <View style={{width: 1, height: 20, backgroundColor: '#ddd', marginHorizontal: 20}} />
+                        <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+                            <Ionicons name="create-outline" size={20} color="#1a5dab" />
+                            <Text style={{ color: '#1a5dab', marginLeft: 5 }}>Edit</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -217,8 +260,9 @@ const styles = StyleSheet.create({
     noteBox: { backgroundColor: '#f9f9f9', padding: 15, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
     noteText: { color: '#444', lineHeight: 22 },
     proofImage: { width: '100%', height: 300, borderRadius: 10, marginTop: 10, resizeMode: 'contain', backgroundColor: '#000' },
-    footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#eee', flexDirection: 'row', justifyContent: 'center' },
-    deleteButton: { flexDirection: 'row', alignItems: 'center', padding: 10 }
+    footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#eee', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+    deleteButton: { flexDirection: 'row', alignItems: 'center', padding: 10 },
+    editButton: { flexDirection: 'row', alignItems: 'center', padding: 10 },
 });
 
 export default TransactionDetailModal;
