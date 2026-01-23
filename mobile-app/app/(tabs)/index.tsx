@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Dimensions } from 'react-native';
+import React from 'react';
+import {
+    View, Text, StyleSheet, ScrollView, TouchableOpacity,
+    StatusBar, Dimensions
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart } from "react-native-gifted-charts";
-import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { LineChart } from "react-native-gifted-charts";
+import { useTransaction } from '@/context/TransactionContext';
 
-type TipeSaldo = 'Total' | 'Tabungan' | 'Giro';
-type UserRole = 'admin' | 'bendahara' | 'auditor' | 'viewer';
 export default function Dashboard() {
-    // State buat nyimpen pilihan user
-    const [selectedSaldo, setSelectedSaldo] = useState<TipeSaldo>('Total');
-    const [userRole, setUserRole] = useState<UserRole>('viewer');
-    const [isDropdownOpen, setDropdownOpen] = useState(false);
+    const { transactions, userRole } = useTransaction();
     const screenWidth = Dimensions.get('window').width;
+
     const handleLogout = async () => {
         try {
             await SecureStore.deleteItemAsync('userToken');
@@ -28,103 +28,70 @@ export default function Dashboard() {
         }
     };
 
-    // Data Dummy Saldo
-    const saldoData: Record<TipeSaldo, string> = {
-        'Total': 'Rp 125.450.000',
-        'Tabungan': 'Rp 75.000.000',
-        'Giro': 'Rp 50.450.000'
+    const totalIncome = transactions
+        .filter(t => t.type === 'pemasukan' && t.status === 'approved')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalExpense = transactions
+        .filter(t => t.type === 'pengeluaran' && t.status === 'approved')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+    const balance = totalIncome - totalExpense;
+
+    const formatMoney = (val: number) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+        }).format(val);
     };
 
-    // Fungsi pas user milih opsi
-    const handleSelect = (jenis: TipeSaldo) => {
-        setSelectedSaldo(jenis);
-        setDropdownOpen(false);
-    };
-
-    // Data Dummy Grafik 
+    // --- DATA DUMMY GRAFIK ---
     const dataGrafik = [
         { value: 15, label: 'Sen' }, { value: 30, label: 'Sel' },
         { value: 26, label: 'Rab' }, { value: 40, label: 'Kam' },
         { value: 25, label: 'Jum' }, { value: 10, label: 'Sab' },
     ];
 
-    useEffect(() => {
-        const loadRole = async () => {
-            const storedRole = await SecureStore.getItemAsync('userRole');
-            if (storedRole) {
-                setUserRole(storedRole as UserRole);
-            }
-        };
-        loadRole();
-    }, [])
-
     return (
-        <View style={{ flex: 1 }}>
-            <ScrollView style={styles.container}>
-                {/* Header Area */}
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>E-CashBook</Text>
-                    <View style={styles.headerRight}>
-                        <TouchableOpacity
-                            onPress={() => alert('Todo: Buat fitur Notifikasi')}
-                        >
-                            <Ionicons name="notifications-outline" size={24} color="white" />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={handleLogout}>
-                            <Ionicons name="log-out-outline" size={24} color="white" />
-                        </TouchableOpacity>
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor="#1a5dab" />
+            <View style={styles.header}>
+                <View style={styles.userInfo}>
+                    <View>
+                        <Text style={styles.greeting}>Halo, {userRole ? userRole.toUpperCase() : 'USER'}</Text>
+                        <Text style={styles.subtitle}>Selamat datang kembali!</Text>
                     </View>
-                </View>
-
-                <View style={styles.cardMain}>
-
-                    {/* Tombol Dropdown */}
-                    <TouchableOpacity
-                        style={styles.dropdownButton}
-                        onPress={() => setDropdownOpen(!isDropdownOpen)}
-                    >
-                        <Text style={styles.label}>Saldo {selectedSaldo}</Text>
-                        <Ionicons name={isDropdownOpen ? "chevron-up" : "chevron-down"} size={20} color="#555" />
+                    <TouchableOpacity onPress={handleLogout}>
+                        <Ionicons name="log-out-outline" size={24} color="white" />
                     </TouchableOpacity>
+                </View>
 
-                    {/* Menu Dropdown */}
-                    {isDropdownOpen && (
-                        <View style={styles.dropdownMenu}>
-                            {(['Total', 'Tabungan', 'Giro'] as TipeSaldo[]).map((item) => (
-                                <TouchableOpacity
-                                    key={item}
-                                    style={styles.dropdownItem}
-                                    onPress={() => handleSelect(item)}
-                                >
-                                    <Text style={{ fontWeight: item === selectedSaldo ? 'bold' : 'normal', color: '#333' }}>
-                                        Saldo {item}
-                                    </Text>
-                                    {item === selectedSaldo && <Ionicons name="checkmark" size={16} color="green" />}
-                                </TouchableOpacity>
-                            ))}
+                <View style={styles.balanceCard}>
+                    <Text style={styles.balanceLabel}>Total Saldo (Approved)</Text>
+                    <Text style={styles.balanceValue}>{formatMoney(balance)}</Text>
+
+                    <View style={styles.rowSummary}>
+                        <View style={styles.summaryItem}>
+                            <View style={styles.summaryIconLabel}>
+                                <Ionicons name="arrow-down-circle" size={20} color="#e8f5e9" />
+                                <Text style={styles.summaryLabel}>Pemasukan</Text>
+                            </View>
+                            <Text style={styles.summaryValue}>{formatMoney(totalIncome)}</Text>
                         </View>
-                    )}
-
-                    {/* Angka Saldo Berubah Sesuai Pilihan */}
-                    <Text style={styles.amount}>{saldoData[selectedSaldo]}</Text>
-                    <Text style={styles.subLabel}>
-                        {selectedSaldo === 'Total' ? 'Total Akumulasi' : `Rekening ${selectedSaldo}`}
-                    </Text>
-                </View>
-
-                <View style={styles.row}>
-                    <View style={styles.summaryBox}>
-                        <Text style={{ color: 'green' }}>Uang Masuk</Text>
-                        <Text style={styles.summaryAmount}>Rp 45.200.000</Text>
-                    </View>
-                    <View style={styles.summaryBox}>
-                        <Text style={{ color: 'red' }}>Uang Keluar</Text>
-                        <Text style={styles.summaryAmount}>Rp 32.850.000</Text>
+                        <View style={styles.summaryItem}>
+                            <View style={styles.summaryIconLabel}>
+                                <Ionicons name="arrow-up-circle" size={20} color="#ffebee" />
+                                <Text style={styles.summaryLabel}>Pengeluaran</Text>
+                            </View>
+                            <Text style={styles.summaryValue}>{formatMoney(totalExpense)}</Text>
+                        </View>
                     </View>
                 </View>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.content}>
 
                 <View style={styles.chartContainer}>
-                    <Text style={styles.sectionTitle}>Grafik Arus Kas</Text>
+                    <Text style={styles.sectionTitle}>Grafik Minggu Ini</Text>
                     <LineChart
                         data={dataGrafik}
                         color="#1a5dab"
@@ -139,16 +106,47 @@ export default function Dashboard() {
                         hideRules
                         yAxisThickness={0}
                         xAxisThickness={0}
-                        height={200}
-                        width={screenWidth - 80}
+                        height={180}
+                        width={screenWidth - 80} 
                         initialSpacing={20}
                         endSpacing={20}
-                        spacing={60}
+                        spacing={55}
                     />
                 </View>
 
+                <Text style={styles.sectionTitle}>Menu Utama</Text>
+                <View style={styles.grid}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/uang_masuk')}>
+                        <View style={[styles.iconBox, { backgroundColor: '#e8f5e9' }]}>
+                            <Ionicons name="wallet-outline" size={28} color="#2e7d32" />
+                        </View>
+                        <Text style={styles.menuText}>Uang Masuk</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/uang_keluar')}>
+                        <View style={[styles.iconBox, { backgroundColor: '#ffebee' }]}>
+                            <Ionicons name="card-outline" size={28} color="#c62828" />
+                        </View>
+                        <Text style={styles.menuText}>Uang Keluar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/laporan')}>
+                        <View style={[styles.iconBox, { backgroundColor: '#e3f2fd' }]}>
+                            <Ionicons name="bar-chart-outline" size={28} color="#1565c0" />
+                        </View>
+                        <Text style={styles.menuText}>Laporan</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.menuItem} onPress={() => alert('Fitur Profile Coming Soon')}>
+                        <View style={[styles.iconBox, { backgroundColor: '#f3e5f5' }]}>
+                            <Ionicons name="person-outline" size={28} color="#7b1fa2" />
+                        </View>
+                        <Text style={styles.menuText}>Akun Saya</Text>
+                    </TouchableOpacity>
+                </View>
             </ScrollView>
-            {(userRole === 'admin' || userRole === 'bendahara') && (
+
+            {(userRole === 'admin' || userRole === 'staff' || userRole === 'finance') && (
                 <TouchableOpacity
                     style={styles.fab}
                     onPress={() => router.push('/transaction/create')}
@@ -161,109 +159,90 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
+    container: { flex: 1, backgroundColor: '#f8f9fa' },
     header: {
         backgroundColor: '#1a5dab',
         padding: 20,
-        paddingTop: (StatusBar.currentHeight || 0) + 20,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        paddingTop: 50,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+        paddingBottom: 40,
+        marginBottom: -20, 
         zIndex: 1
     },
-    headerTitle: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-    headerRight: {
-        flexDirection: 'row',
-        gap: 20
-    },
-    fab: {
-        position: 'absolute',
-        width: 60,
-        height: 60,
-        alignItems: 'center',
-        justifyContent: 'center',
-        right: 20,
-        bottom: 30,
-        backgroundColor: '#1a5dab',
-        borderRadius: 30,
-        elevation: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4.65,
-    },
-    cardMain: {
-        backgroundColor: 'white',
-        margin: 20,
-        padding: 20,
+    userInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    greeting: { fontSize: 18, color: '#e3f2fd' },
+    subtitle: { fontSize: 20, fontWeight: 'bold', color: 'white' },
+
+    balanceCard: {
+        backgroundColor: 'rgba(255,255,255,0.15)',
         borderRadius: 15,
-        alignItems: 'center',
-        elevation: 3,
-        zIndex: 10
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)'
     },
-
-    dropdownButton: {
+    balanceLabel: { color: '#e3f2fd', fontSize: 14, marginBottom: 5 },
+    balanceValue: { color: 'white', fontSize: 28, fontWeight: 'bold', marginBottom: 15 },
+    rowSummary: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)', paddingTop: 15 },
+    summaryItem: {
+        flexDirection: 'column',  
+        alignItems: 'flex-start',
+        gap: 8
+    },
+    summaryIconLabel: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f0f0f0',
-        paddingVertical: 8,
-        paddingHorizontal: 15,
-        borderRadius: 20,
-        marginBottom: 10
+        gap: 8
     },
-    dropdownMenu: {
-        position: 'absolute',
-        top: 60,
-        backgroundColor: 'white',
-        width: '80%',
-        borderRadius: 10,
-        padding: 5,
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        zIndex: 20
-    },
-    dropdownItem: {
-        padding: 15,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0'
+    summaryLabel: { color: '#e3f2fd', fontSize: 12 },
+    summaryValue: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 14,
+        marginLeft: 0 
     },
 
-    amount: { fontSize: 28, fontWeight: 'bold', marginVertical: 10, color: '#1a5dab' },
-    label: { fontSize: 16, color: '#555', marginRight: 5 },
-    subLabel: { fontSize: 12, color: '#888' },
-
-    row: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        marginTop: 10,
-        marginBottom: 20,
-        zIndex: 1 // Z-index rendah biar gak nutupin dropdown dari atas
-    },
-    summaryBox: {
-        backgroundColor: 'white',
-        padding: 15,
-        borderRadius: 10,
-        width: '48%',
-        elevation: 3
-    },
-    summaryAmount: { fontWeight: 'bold', fontSize: 16, marginTop: 5 },
+    content: { padding: 20, paddingTop: 30 }, 
+    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
 
     chartContainer: {
         backgroundColor: 'white',
-        margin: 20,
-        marginTop: 0,
-        padding: 20,
         borderRadius: 15,
+        padding: 20,
+        marginBottom: 25, 
         elevation: 3,
-        marginBottom: 50,
-        paddingBottom: 10,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
         overflow: 'hidden'
     },
-    sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 20 }
+
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    menuItem: {
+        width: '48%',
+        backgroundColor: 'white',
+        padding: 20,
+        borderRadius: 15,
+        alignItems: 'center',
+        marginBottom: 15,
+        elevation: 2,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4
+    },
+    iconBox: {
+        width: 50, height: 50, borderRadius: 25,
+        justifyContent: 'center', alignItems: 'center', marginBottom: 10
+    },
+    menuText: { fontSize: 14, fontWeight: '600', color: '#555' },
+
+    fab: {
+        position: 'absolute',
+        bottom: 30,
+        right: 30,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#1a5dab',
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 5,
+        shadowColor: '#1a5dab', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4
+    }
 });
