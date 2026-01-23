@@ -31,7 +31,7 @@ const TransactionCard: React.FC<Props> = ({ data, onPress }) => {
 
     return (
         <TouchableOpacity
-            style={[styles.card, isPending && { borderColor: '#fbc02d', borderWidth: 1 }]}
+            style={[styles.card, isPending ? { borderColor: '#fbc02d', borderWidth: 1 } : { borderColor: '#eee' }]}
             onPress={onPress}
         >
             <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     card: {
         flexDirection: 'row', alignItems: 'center', backgroundColor: 'white',
         padding: 15, borderRadius: 12, marginBottom: 10,
-        elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1,borderWidth: 1
     },
     iconContainer: { width: 45, height: 45, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     infoContainer: { flex: 1 },
