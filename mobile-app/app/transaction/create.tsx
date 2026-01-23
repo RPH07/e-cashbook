@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert 
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert 
 } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import FloatingInput from '@/components/FloatingInput';
-import { useTransaction } from '../../context/TransactionContext'; 
+// Import userRole juga dari Context
+import { useTransaction, Transaction } from '../../context/TransactionContext'; 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TransactionType = 'pemasukan' | 'pengeluaran';
 
 export default function CreateTransaction() {
     const insets = useSafeAreaInsets();
-    const { addTransaction, updateTransaction, transactions } = useTransaction();
+    const { addTransaction, updateTransaction, transactions, userRole } = useTransaction();
     
     const params = useLocalSearchParams();
     const editId = params.id as string;
@@ -42,7 +43,7 @@ export default function CreateTransaction() {
                 setImage(txToEdit.imageUri || null);
             }
         }
-    }, [editId, isEditMode, transactions]);
+    }, [editId]);
 
     const themeColor = type === 'pemasukan' ? '#2e7d32' : '#c62828';
 
@@ -58,22 +59,40 @@ export default function CreateTransaction() {
     };
 
     const pickImage = async () => {
+
         // Request Permission dulu
+
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
         if (status !== 'granted') {
+
             Alert.alert('Maaf', 'Kami butuh izin akses galeri buat upload struk!', [{ text: 'Oke' }]);
+
             return;
+
         }
+
         let result = await ImagePicker.launchImageLibraryAsync({
+
             mediaTypes: ['images'],
+
             allowsEditing: true,
+
             aspect: [4, 3],
+
             quality: 0.5,
+
         });
+
         if (!result.canceled) {
+
             setImage(result.assets[0].uri);
+
         }
+
     };
+
+
 
     const handleSave = () => {
         if (!amount || !category) {
@@ -81,15 +100,19 @@ export default function CreateTransaction() {
             return;
         }
 
-        const transactionData = {
-            id: isEditMode ? editId : Date.now().toString(), 
+        const autoStatus = userRole === 'staff' ? 'pending' : 'approved';
+
+        const transactionData: Transaction = {
+            id: isEditMode ? editId : Date.now().toString(),
             type: type,
             amount: parseFloat(amount),
             category: category,
             date: date.toISOString(),
             note: note,
             account: account,
-            imageUri: image
+            imageUri: image,
+            status: isEditMode ? 'approved' : autoStatus, 
+            createdByRole: userRole 
         };
 
         if (isEditMode) {
@@ -97,7 +120,11 @@ export default function CreateTransaction() {
             Alert.alert("Berhasil", "Data berhasil diperbarui!");
         } else {
             addTransaction(transactionData);
-            Alert.alert("Berhasil", "Transaksi baru disimpan!");
+            if (userRole === 'staff') {
+                Alert.alert("Terkirim!", "Transaksi masuk antrian approval (Pending).");
+            } else {
+                Alert.alert("Berhasil!", "Transaksi berhasil disimpan (Auto-Approved).");
+            }
         }
 
         router.back();
@@ -115,7 +142,6 @@ export default function CreateTransaction() {
             />
 
             <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-                
                 <View style={[styles.headerContainer, { backgroundColor: themeColor }]}>
                     <View style={[styles.switchContainer]}>
                         <TouchableOpacity
