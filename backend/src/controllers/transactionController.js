@@ -2,6 +2,7 @@
 
 const TransactionService = require('../services/transactionService');
 
+// Controller untuk membuat transaksi baru
 const createTransaction = async (req, res) => {
     try {
         const {
@@ -58,4 +59,42 @@ const createTransaction = async (req, res) => {
     }
 }
 
-module.exports = { createTransaction };
+const getAllTransaction = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const data = await TransactionService.getAllTransactions(userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Riwayat Transaksi Berhasil Diambil',
+            data: data
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+const deleteTransaction = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        const result = await TransactionService.deleteTransaction(id, userId);
+
+        res.status(200).json({
+            success: true,
+            message: result.message,
+        })
+    }catch (error){
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+}
+
+module.exports = { createTransaction, getAllTransaction, deleteTransaction};
