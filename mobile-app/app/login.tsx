@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import FloatingInput from '@/components/FloatingInput';
+import { useTransaction, UserRole } from '@/context/TransactionContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -53,20 +54,28 @@ export default function LoginScreen() {
   }
 
   // Simulasi Role 
-  const handleLogin = async() => {
-    // Validasi dummy
+  const { setUserRole } = useTransaction();
+const handleLogin = async() => {
     if (validate()) {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const dummyToken = "abc-123-token-rahasia-dari-backend"
+      
+      // Simulasi delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const dummyToken = "abc-123-token-rahasia-dari-backend";
 
-      let role = 'viewer';
-      if(email.toLowerCase().includes('admin')) role='admin';
-      if(email.toLowerCase().includes('bendahara')) role='bendahara';
-      if(email.toLowerCase().includes('auditor')) role='auditor';
-      // simpen token
+      let role: UserRole = 'staff'; 
+      const lowerEmail = email.toLowerCase();
+      
+      if(lowerEmail.includes('admin')) role = 'admin';
+      else if(lowerEmail.includes('finance')) role = 'finance';
+      // sisanya otomatis 'staff'
+
+      // Simpan ke HP & Context
       await SecureStore.setItemAsync('userToken', dummyToken);
       await SecureStore.setItemAsync('userRole', role);
+      setUserRole(role); 
+
+      setIsLoading(false);
       setEmail('');
       setPassword('');
       router.replace('/(tabs)');
