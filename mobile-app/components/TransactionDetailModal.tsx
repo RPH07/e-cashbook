@@ -18,7 +18,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CLOSE_THRESHOLD = SCREEN_HEIGHT * 0.25;
 
 const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction }) => {
-    const { deleteTransaction } = useTransaction();
+    const { userRole, approveTransaction, deleteTransaction } = useTransaction();
     const panY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const [showModal, setShowModal] = useState(false);
     const backdropOpacity = panY.interpolate({
@@ -88,35 +88,40 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
     ).current;
 
     if (!transaction) return null;
-
     const isIncome = transaction.type === 'pemasukan';
-    
     const formattedAmount = new Intl.NumberFormat('id-ID', {
         style: 'currency', currency: 'IDR', minimumFractionDigits: 0,
     }).format(transaction.amount);
-
     const formattedDate = new Date(transaction.date).toLocaleDateString('id-ID', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     });
-
     const animatedStyle = {
         transform: [{ translateY: panY }]
     }
 
+    const canApprove = transaction?.status === 'pending' && (userRole === 'finance' || userRole === 'admin')
+    const canEditDelete = (() => {
+        if (!transaction) return false;
+        if (userRole === 'admin') return true;
+        if (userRole === 'finance') return true;
+        if (userRole === 'staff' && transaction.status === 'pending') return true;
+        return false;
+    })
+
     const handleDelete = () => {
         if (!transaction) return;
-        
+
         Alert.alert(
             "Hapus Transaksi?",
             "Yakin mau hapus data ini? data tidak bisa di kembalikan.",
             [
                 { text: "Batal", style: "cancel" },
-                { 
-                    text: "Hapus", 
+                {
+                    text: "Hapus",
                     style: "destructive",
                     onPress: () => {
                         deleteTransaction(transaction.id);
-                        closeModalAnimated(); 
+                        closeModalAnimated();
                     }
                 }
             ]
@@ -132,6 +137,14 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
         });
     };
 
+    const handleApprove = () => {
+        if (transaction) {
+            approveTransaction(transaction.id);
+            onClose();
+            alert("Transaksi berhasil di-Approve!");
+        }
+    }
+
     return (
         <Modal
             visible={showModal}
@@ -140,14 +153,13 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
             onRequestClose={closeModalAnimated}
         >
             <View style={styles.overlayWrapper}>
-                
+
                 <TouchableWithoutFeedback onPress={closeModalAnimated}>
-                    <Animated.View 
-                        style={[styles.backdrop, { opacity: backdropOpacity }]} 
+                    <Animated.View
+                        style={[styles.backdrop, { opacity: backdropOpacity }]}
                     />
                 </TouchableWithoutFeedback>
                 <Animated.View style={[styles.modalContainer, animatedStyle]} >
-                    
                     <View style={styles.header} {...panResponder.panHandlers}>
                         <View style={styles.dragHandle} />
                         <View style={styles.headerContent}>
@@ -157,9 +169,19 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                             </TouchableOpacity>
                         </View>
                     </View>
+                    {transaction.status === 'pending' && (
+                        <View style={{ alignItems: 'center', backgroundColor: '#fff9c4', paddingVertical: 6 }}>
+                            <Text style={{ color: '#f57f17', fontWeight: 'bold', fontSize: 12 }}>⚠️ MENUNGGU PERSETUJUAN (PENDING)</Text>
+                        </View>
+                    )}
+                    {transaction.status === 'approved' && (
+                        <View style={{ alignItems: 'center', backgroundColor: '#e8f5e9', paddingVertical: 6 }}>
+                            <Text style={{ color: '#2e7d32', fontWeight: 'bold', fontSize: 12 }}>✅ SUDAH DISETUJUI (APPROVED)</Text>
+                        </View>
+                    )}
 
-                    <ScrollView 
-                        style={{ flex: 1 }} 
+                    <ScrollView
+                        style={{ flex: 1 }}
                         contentContainerStyle={styles.content}
                     >
                         <View style={[styles.amountBox, { backgroundColor: isIncome ? '#e8f5e9' : '#ffebee' }]} >
@@ -191,7 +213,7 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                                 </Text>
                             </View>
                         </View>
-                        
+
                         {transaction.imageUri && (
                             <View style={styles.section} >
                                 <Text style={styles.label}>Bukti Transaksi</Text>
@@ -204,15 +226,28 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                     </ScrollView>
 
                     <View style={styles.footer}>
-                        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-                            <Ionicons name="trash-outline" size={20} color="#c62828" />
-                            <Text style={{ color: '#c62828', marginLeft: 5 }}>Hapus</Text>
-                        </TouchableOpacity>
-                        <View style={{width: 1, height: 20, backgroundColor: '#ddd', marginHorizontal: 20}} />
-                        <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-                            <Ionicons name="create-outline" size={20} color="#1a5dab" />
-                            <Text style={{ color: '#1a5dab', marginLeft: 5 }}>Edit</Text>
-                        </TouchableOpacity>
+                        {canApprove ? (
+                            <TouchableOpacity style={[styles.approveButton, { backgroundColor: '#2e7d32' }]} onPress={handleApprove}>
+                                <Ionicons name="checkmark-circle" size={20} color="white" />
+                                <Text style={styles.btnTextWhite}>SETUJUI (ACC)</Text>
+                            </TouchableOpacity>
+                        ) : canEditDelete() ? (
+                            <>
+                                <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+                                    <Ionicons name="trash-outline" size={20} color="#c62828" />
+                                    <Text style={{ color: '#c62828', marginLeft: 5 }}>Hapus</Text>
+                                </TouchableOpacity>
+                                <View style={styles.separator} />
+                                <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
+                                    <Ionicons name="create-outline" size={20} color="#1a5dab" />
+                                    <Text style={{ color: '#1a5dab', marginLeft: 5 }}>Edit</Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <View style={{ alignItems: 'center', width: '100%' }}>
+                                <Text style={{ color: '#888', fontStyle: 'italic' }}>🔒 Transaksi terkunci (Read Only)</Text>
+                            </View>
+                        )}
                     </View>
 
                 </Animated.View>
@@ -262,6 +297,9 @@ const styles = StyleSheet.create({
     footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#eee', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
     deleteButton: { flexDirection: 'row', alignItems: 'center', padding: 10 },
     editButton: { flexDirection: 'row', alignItems: 'center', padding: 10 },
+    approveButton: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 8, width: '100%', justifyContent: 'center' },
+    btnTextWhite: { color: 'white', marginLeft: 5, fontWeight: 'bold' },
+    separator: { width: 1, height: 20, backgroundColor: '#ddd', marginHorizontal: 20 }
 });
 
 export default TransactionDetailModal;
