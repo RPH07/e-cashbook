@@ -1,17 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-export interface Transaction {
-    id: string;
-    type: 'pemasukan' | 'pengeluaran';
-    amount: number;
-    category: string;
-    date: string;
-    note?: string;
-    account: string;
-    imageUri?: string | null;
-}
+import { Transaction } from '@/context/TransactionContext';
 
 interface Props {
     data: Transaction;

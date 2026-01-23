@@ -5,9 +5,8 @@ import {
     Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Transaction } from '@/components/TransactionCard';
 import { router } from 'expo-router';
-import { useTransaction } from '@/context/TransactionContext';
+import { useTransaction, Transaction } from '@/context/TransactionContext';
 
 interface Props {
     visible: boolean;
