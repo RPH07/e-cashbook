@@ -95,14 +95,13 @@ export default function CreateTransaction() {
     // };
 
 
-
     const handleSave = () => {
         if (!amount || !category) {
-            Alert.alert("Eits!", "Nominal dan Kategori wajib diisi ya!");
+            Alert.alert("Nominal dan Kategori wajib diisi ya!");
             return;
         }
 
-        const autoStatus = userRole === 'staff' ? 'pending' : 'approved';
+        // const autoStatus = userRole === 'staff' ? 'pending' : 'approved';
 
         const transactionData: Transaction = {
             id: isEditMode ? editId : Date.now().toString(),
@@ -114,8 +113,8 @@ export default function CreateTransaction() {
             account: account,
             // imageUri: image,
             proofLink: proofLink,
-            status: isEditMode ? 'approved' : autoStatus, 
-            createdByRole: userRole 
+            createdByRole: userRole,
+            status: 'pending'
         };
 
         if (isEditMode) {
