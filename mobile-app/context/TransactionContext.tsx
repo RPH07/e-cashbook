@@ -13,19 +13,35 @@ export interface Transaction {
     imageUri?: string | null;
     status: 'pending' | 'approved' | 'rejected';
     createdByRole: string;
+    createdByName: string;
     proofLink?: string | null;
+}
+
+export interface AuditLog {
+    id: string;
+    timestamp: string;
+    actorName: string;
+    actorRole: string;
+    actionType: 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT' | 'LOGIN' | 'EXPORT' | 'SYSTEM';
+    target: string;
+    details: string;
 }
 
 export type UserRole = 'admin' | 'finance' | 'staff';
 
 interface TransactionContextType {
     transactions: Transaction[];
+    logs:AuditLog[];
     userRole: UserRole;
+    userName: string;
     setUserRole: (role: UserRole) => Promise<void>;
+    setUserName: (name: string) => Promise<void>;
     addTransaction: (tx: Transaction) => Promise<void>;
     deleteTransaction: (id: string) => Promise<void>;
     updateTransaction: (tx: Transaction) => Promise<void>;
     approveTransaction: (id: string) => Promise<void>;
+    rejectTransaction: (id: string) => Promise<void>;
+    recordLog: (action: AuditLog['actionType'], target: string, details: string) => void;
 }
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
@@ -33,11 +49,43 @@ const TransactionContext = createContext<TransactionContextType | undefined>(und
 export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [userRole, setUserRole] = useState<UserRole>('staff'); 
+    const [userName, setUserName] = useState<string>('User');
+    const [logs, setLogs] = useState<AuditLog[]>([]);
+    const saveLogsToStorage = async (newLogs: AuditLog[]) => {
+        try {
+            await SecureStore.setItemAsync('appLogs', JSON.stringify(newLogs));
+        } catch (error) {
+            console.log("Gagal Menyimpan: ", error);
+        }
+    };
+
+    const recordLog = (actionType: AuditLog['actionType'], target: string, details: string) => {
+        const newLog: AuditLog = {
+            id: Date.now().toString() + Math.floor(Math.random() * 1000 ),
+            timestamp: new Date().toISOString(),
+            actorName: userName,
+            actorRole: userRole,
+            actionType,
+            target,
+            details
+
+        };
+        setLogs(prev => {
+            const updated = [newLog, ...prev];
+            saveLogsToStorage(updated);
+            return updated
+        })
+    }
 
     useEffect(() => {
         const loadInitialData = async () => {
             const storedRole = await SecureStore.getItemAsync('userRole');
+            const storedName = await SecureStore.getItemAsync('userName');
+            const storedLogs = await SecureStore.getItemAsync('appLogs');
+
             if (storedRole) setUserRole(storedRole as UserRole);
+            if(storedName) setUserName(storedName);
+            if(storedLogs) setLogs(JSON.parse(storedLogs));
 
             try {
                 const apiData = await transactionService.getAll();
@@ -48,7 +96,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
                         {
                             id: '1', type: 'pemasukan', amount: 5000000, category: 'Proyek Website',
                             date: new Date().toISOString(), account: 'Giro', note: 'DP Project',
-                            status: 'approved', createdByRole: 'admin'
+                            status: 'approved', createdByRole: 'admin', createdByName: 'Budi'
                         }
                     ]);
                 }
@@ -64,39 +112,58 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         await SecureStore.setItemAsync('userRole', role);
     };
 
-    const addTransaction = async (tx: Transaction) => {
+    const changeUserName = async (name: string) => {
+        setUserName(name);
+        await SecureStore.setItemAsync('userName', name)
+    }
 
+const addTransaction = async (tx: Transaction) => {
         try {
-            const newTx = await transactionService.create({
+            const finalStatus: 'pending' | 'approved' | 'rejected' = userRole === 'staff' ? 'pending' : 'approved';
+
+            const txPayload = {
                 type: tx.type,
                 amount: tx.amount,
                 category: tx.category,
                 date: tx.date,
                 note: tx.note,
                 account: tx.account,
-                // imageUri: tx.imageUri,
-                proofLink: tx.proofLink
-            });
-
-            console.log("Data balik dari Service:", newTx);
-
-            const finalTx: Transaction = {
-                ...newTx,
-                status: userRole === 'staff' ? 'pending' : 'approved',
-                createdByRole: userRole
+                proofLink: tx.proofLink,
+                status: finalStatus,
+                createdByRole: userRole,
+                createdByName: userName
             };
 
-            setTransactions((prev) => [finalTx, ...prev]);
-        } catch (error) {
-            console.error(error)
-            throw error;
-        }
+            const newTx = await transactionService.create(txPayload);
+            
+            const finalTxForUI: Transaction = {
+                ...newTx,
+                status: finalStatus, 
+                createdByRole: userRole,
+                createdByName: userName
+            };
+            
+            setTransactions((prev) => [finalTxForUI, ...prev]);
+
+            // Log
+            recordLog('CREATE', `Ref: ${finalTxForUI.id.substring(0,6)}`, `Input Transaksi Baru senilai Rp${tx.amount}`);
+
+        } catch (error) { console.error(error); throw error; }
     };
 
     const deleteTransaction = async (id: string) => {
+        
         try {
+            const txToDelete = transactions.find(t => t.id === id);
             await transactionService.delete(id);
             setTransactions((prev) => prev.filter((item) => item.id !== id));
+            if (txToDelete) {
+                recordLog(
+                    'DELETE', 
+                    `Ref: ${id.substring(0,6).toUpperCase()}`, 
+                    `Menghapus transaksi ${txToDelete.category} senilai Rp${txToDelete.amount}`
+                );
+            }
         } catch (error) {
             console.error(error);
             throw error;
@@ -105,21 +172,44 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
 
     const updateTransaction = async (updatedTx: Transaction) => {
         try {
-            await transactionService.update(updatedTx.id, {
-                type: updatedTx.type,
-                amount: updatedTx.amount,
-                category: updatedTx.category,
-                date: updatedTx.date,
-                note: updatedTx.account,
-                // imageUri: updatedTx.imageUri,
-                proofLink: updatedTx.proofLink
-            });
+            const forcedStatus: 'pending' | 'approved' | 'rejected' = 
+                (userRole === 'admin' || userRole === 'finance') ? 'approved' : 'pending';
 
+            // Gabungin data baru dengan status yang udah dipaksa
+            const finalTx = {
+                ...updatedTx,
+                status: forcedStatus 
+            };
+            const oldTx = transactions.find(t => t.id === finalTx.id);
+            const changes: string[] = [];
+
+            if (oldTx) {
+                if (oldTx.amount !== finalTx.amount) 
+                    changes.push(`Nominal: ${oldTx.amount} -> ${finalTx.amount}`);
+                if (oldTx.category !== finalTx.category) 
+                    changes.push(`Kategori: ${oldTx.category} -> ${finalTx.category}`);
+                if (oldTx.status !== finalTx.status) 
+                    changes.push(`Status: ${oldTx.status} -> ${finalTx.status}`);
+            }
+            const changeSummary = changes.length > 0 ? changes.join(', ') : 'Update data';
+            await transactionService.update(finalTx.id, {
+                type: finalTx.type,
+                amount: finalTx.amount,
+                category: finalTx.category,
+                date: finalTx.date,
+                note: finalTx.note,
+                account: finalTx.account,
+                proofLink: finalTx.proofLink,
+                status: finalTx.status,
+                // createdByName: userName (Opsional, kalau mau update nama pengedit)
+            });
             setTransactions((prev) =>
-                prev.map((item) => (item.id === updatedTx.id ? updatedTx : item))
+                prev.map((item) => (item.id === finalTx.id ? finalTx : item))
             );
+            recordLog('UPDATE', `Ref: ${finalTx.id.substring(0,6)}`, changeSummary);
+
         } catch (error) {
-            console.error(error);
+            console.error("Gagal update transaksi:", error);
             throw error;
         }
     };
@@ -130,21 +220,32 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
             setTransactions((prev) =>
                 prev.map((item) => (item.id === id ? { ...item, status: 'approved' } : item))
             );
+            recordLog('APPROVE', `Ref: ${id.substring(0,6)}`, 'Menyetujui (ACC) transaksi');
         } catch (error) {
             console.error(error);
             throw error;
         }
     };
 
+    const rejectTransaction = async (id: string) => {
+        setTransactions((prev) => prev.map((item) => (item.id === id ? { ...item, status: 'rejected' } : item)));
+        recordLog('REJECT', `Ref: ${id.substring(0,6)}`, 'Menolak (Reject) pengajuan transaksi');
+    }
+
     return (
         <TransactionContext.Provider value={{
             transactions,
+            logs,
             userRole,
+            userName,
             setUserRole: changeUserRole,
+            setUserName: changeUserName,
             addTransaction,
             deleteTransaction,
             updateTransaction,
-            approveTransaction
+            approveTransaction,
+            rejectTransaction,
+            recordLog
         }}>
             {children}
         </TransactionContext.Provider>
