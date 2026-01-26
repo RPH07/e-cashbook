@@ -18,7 +18,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CLOSE_THRESHOLD = SCREEN_HEIGHT * 0.25;
 
 const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction }) => {
-    const { userRole, approveTransaction, deleteTransaction } = useTransaction();
+    const { userRole, approveTransaction, deleteTransaction, rejectTransaction } = useTransaction();
     const panY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
     const [showModal, setShowModal] = useState(false);
     const backdropOpacity = panY.interpolate({
@@ -145,6 +145,16 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
         }
     }
 
+    const handleReject = () => {
+    if (transaction && rejectTransaction) { 
+        rejectTransaction(transaction.id);
+        handleClose();
+        Alert.alert("Ditolak", "Transaksi telah ditolak ❌");
+    } else {
+        Alert.alert("Error", "Fungsi tolak belum tersedia di Context");
+    }
+    };
+
     const handleOpenLink = async () => {
         const link = transaction?.proofLink || transaction?.imageUri;
 
@@ -204,20 +214,37 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                             <Text style={styles.amountText} >{formattedAmount}</Text>
                         </View>
 
-                        <View style={styles.infoRow} >
-                            <View style={styles.infoItem}>
-                                <Text style={styles.label} >Tanggal</Text>
-                                <Text style={styles.value} >{formattedDate}</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+                            {/* Kiri: Tanggal */}
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.label}>Tanggal</Text>
+                                <Text style={styles.value}>{formattedDate}</Text>
                             </View>
-                            <View style={[styles.infoItem, { alignItems: 'flex-end' }]} >
-                                <Text style={styles.label} >Akun</Text>
-                                <Text style={[styles.value, { textAlign: 'right' }]} >{transaction.account}</Text>
+
+                            {/* Kanan: Akun */}
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={styles.label}>Akun</Text>
+                                <Text style={styles.value}>{transaction.account}</Text>
                             </View>
                         </View>
-                        <View style={styles.infoRow} >
-                            <View style={styles.infoItem}>
-                                <Text style={styles.label} >Kategori</Text>
-                                <Text style={styles.value} >{transaction.category}</Text>
+
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.label}>Kategori</Text>
+                                <Text style={styles.value}>{transaction.category}</Text>
+                            </View>
+
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={styles.label}>Dibuat Oleh</Text>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text style={[styles.value, { fontWeight: 'bold' }]}>
+                                        {transaction.createdByName || 'User'}
+                                    </Text>
+                                    <Text style={{ fontSize: 12, color: '#666', textTransform: 'capitalize' }}>
+                                        ({transaction.createdByRole})
+                                    </Text>
+                                </View>
                             </View>
                         </View>
                         <View style={styles.section}>
@@ -228,8 +255,6 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                                 </Text>
                             </View>
                         </View>
-
-                        {/* --- UPDATE BAGIAN BUKTI TRANSAKSI (JADI LINK G-DRIVE) --- */}
                         <View style={styles.section}>
                             <Text style={styles.label}>Bukti Transaksi</Text>
                             {transaction.proofLink ? (
@@ -264,30 +289,36 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                     </ScrollView>
 
                     <View style={styles.footer}>
-                        {canApprove ? (
-                            <TouchableOpacity style={[styles.approveButton, { backgroundColor: '#2e7d32' }]} onPress={handleApprove}>
-                                <Ionicons name="checkmark-circle" size={20} color="white" />
-                                <Text style={styles.btnTextWhite}>SETUJUI (ACC)</Text>
-                            </TouchableOpacity>
-                        ) : canEditDelete() ? (
-                            <>
-                                <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-                                    <Ionicons name="trash-outline" size={20} color="#c62828" />
-                                    <Text style={{ color: '#c62828', marginLeft: 5 }}>Hapus</Text>
-                                </TouchableOpacity>
-                                <View style={styles.separator} />
-                                <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-                                    <Ionicons name="create-outline" size={20} color="#1a5dab" />
-                                    <Text style={{ color: '#1a5dab', marginLeft: 5 }}>Edit</Text>
-                                </TouchableOpacity>
-                            </>
-                        ) : (
-                            <View style={{ alignItems: 'center', width: '100%' }}>
-                                <Text style={{ color: '#888', fontStyle: 'italic' }}>🔒 Transaksi terkunci (Read Only)</Text>
-                            </View>
-                        )}
-                    </View>
+                {canApprove ? (
+                    <View style={{flexDirection: 'row', gap: 10}}> 
+                        
+                        {/* Tombol Tolak */}
+                        <TouchableOpacity style={[styles.btn, {backgroundColor: '#c62828', flex:1}]} onPress={handleReject}>
+                            <Ionicons name="close-circle-outline" size={18} color="white" style={{marginRight:5}} />
+                            <Text style={{color:'white', fontWeight:'bold'}}>TOLAK</Text>
+                        </TouchableOpacity>
+                        {/* Tombol Setuju */}
+                        <TouchableOpacity style={[styles.btn, {backgroundColor: '#2e7d32', flex:1}]} onPress={handleApprove}>
+                            <Ionicons name="checkmark-circle-outline" size={18} color="white" style={{marginRight:5}} />
+                            <Text style={{color:'white', fontWeight:'bold'}}>SETUJUI</Text>
+                        </TouchableOpacity>
 
+                    </View>
+                ) : canEditDelete() ? (
+                    <View style={{flexDirection: 'row', gap: 10}}>
+                        <TouchableOpacity style={[styles.btn, {backgroundColor: '#c62828', flex:1}]} onPress={handleDelete}>
+                            <Ionicons name="trash-outline" size={18} color="white" style={{marginRight:5}} />
+                            <Text style={{color:'white'}}>Hapus</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.btn, {backgroundColor: '#1a5dab', flex:1}]} onPress={handleEdit}>
+                            <Ionicons name="create-outline" size={18} color="white" style={{marginRight:5}} />
+                            <Text style={{color:'white'}}>Edit</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <Text style={{textAlign:'center', color:'#888'}}>🔒 Transaksi Terkunci</Text>
+                )}
+            </View>
                 </Animated.View>
             </View>
         </Modal>
@@ -349,7 +380,18 @@ const styles = StyleSheet.create({
     editButton: { flexDirection: 'row', alignItems: 'center', padding: 10 },
     approveButton: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 8, width: '100%', justifyContent: 'center' },
     btnTextWhite: { color: 'white', marginLeft: 5, fontWeight: 'bold' },
-    separator: { width: 1, height: 20, backgroundColor: '#ddd', marginHorizontal: 20 }
+    separator: { width: 1, height: 20, backgroundColor: '#ddd', marginHorizontal: 20 },
+    btn: { 
+    padding: 15, 
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent:'center', 
+    flexDirection:'row' 
+    }
 });
 
 export default TransactionDetailModal;
+
+function handleClose() {
+    throw new Error('Function not implemented.');
+}
