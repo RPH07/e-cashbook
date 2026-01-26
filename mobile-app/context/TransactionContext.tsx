@@ -80,7 +80,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
 
             const finalTx: Transaction = {
                 ...newTx,
-                status: userRole === 'staff' ? 'pending' : 'pending',
+                status: userRole === 'staff' ? 'pending' : 'approved',
                 createdByRole: userRole
             };
 
