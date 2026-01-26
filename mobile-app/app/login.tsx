@@ -54,27 +54,41 @@ export default function LoginScreen() {
   }
 
   // Simulasi Role 
-  const { setUserRole } = useTransaction();
+const { setUserRole, setUserName, recordLog } = useTransaction();
 const handleLogin = async() => {
     if (validate()) {
       setIsLoading(true);
       
       // Simulasi delay
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const dummyToken = "abc-123-token-rahasia-dari-backend";
+      const dummyToken = "abc-123-token-rahasia";
 
       let role: UserRole = 'staff'; 
+      let name = 'User'; 
       const lowerEmail = email.toLowerCase();
       
-      if(lowerEmail.includes('admin')) role = 'admin';
-      else if(lowerEmail.includes('finance')) role = 'finance';
-      // sisanya otomatis 'staff'
+      if(lowerEmail.includes('admin')) {
+          role = 'admin';
+          name = 'Pak Bos (Administrator)'; 
+      } else if(lowerEmail.includes('finance')) {
+          role = 'finance';
+          name = 'Bu Bendahara'; 
+      } else {
+          // Kalau staff, ambil nama dari depan email (misal: budi@gmail.com -> Budi)
+          const nameFromEmail = email.split('@')[0];
+          name = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+      }
 
-      // Simpan ke HP & Context
+      // Simpan ke HP (SecureStore)
       await SecureStore.setItemAsync('userToken', dummyToken);
       await SecureStore.setItemAsync('userRole', role);
+      await SecureStore.setItemAsync('userName', name);
+      
+      recordLog('LOGIN', 'System', `${name} (${role}) berhasil login ke aplikasi`)
       setUserRole(role); 
-
+      setUserName(name);
+      
+      // Pindah ke Dashboard
       setIsLoading(false);
       setEmail('');
       setPassword('');
