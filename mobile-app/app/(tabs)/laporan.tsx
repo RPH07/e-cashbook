@@ -73,6 +73,7 @@ export default function LaporanScreen() {
 
     // 2. Loop semua transaksi buat dipilah-pilah
     transactions.forEach(t => {
+      if(t.status !== 'approved') return;
       const tDate = new Date(t.date);
 
       // Kalo transaksinya SEBELUM tanggal awal -> Masuk ke Saldo Awal
