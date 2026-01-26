@@ -13,6 +13,7 @@ export interface Transaction {
     imageUri?: string | null;
     status: 'pending' | 'approved' | 'rejected';
     createdByRole: string;
+    proofLink?: string | null;
 }
 
 export type UserRole = 'admin' | 'finance' | 'staff';
@@ -73,7 +74,8 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
                 date: tx.date,
                 note: tx.note,
                 account: tx.account,
-                imageUri: tx.imageUri
+                // imageUri: tx.imageUri,
+                proofLink: tx.proofLink
             });
 
             console.log("Data balik dari Service:", newTx);
@@ -109,7 +111,8 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
                 category: updatedTx.category,
                 date: updatedTx.date,
                 note: updatedTx.account,
-                imageUri: updatedTx.imageUri
+                // imageUri: updatedTx.imageUri,
+                proofLink: updatedTx.proofLink
             });
 
             setTransactions((prev) =>

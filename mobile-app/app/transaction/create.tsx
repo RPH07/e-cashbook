@@ -28,7 +28,8 @@ export default function CreateTransaction() {
     const [category, setCategory] = useState('');
     const [account, setAccount] = useState('Giro');
     const [note, setNote] = useState('');
-    const [image, setImage] = useState<string | null>(null);
+    // const [image, setImage] = useState<string | null>(null);
+    const [proofLink, setProofLink] = useState('');
 
     useEffect(() => {
         if (isEditMode) {
@@ -40,7 +41,8 @@ export default function CreateTransaction() {
                 setCategory(txToEdit.category);
                 setAccount(txToEdit.account);
                 setNote(txToEdit.note || '');
-                setImage(txToEdit.imageUri || null);
+                // setImage(txToEdit.imageUri || null);
+                setProofLink(txToEdit.proofLink || '');
             }
         }
     }, [editId]);
@@ -58,39 +60,39 @@ export default function CreateTransaction() {
         if (selectedDate) setDate(selectedDate);
     };
 
-    const pickImage = async () => {
+    // const pickImage = async () => {
 
-        // Request Permission dulu
+    //     // Request Permission dulu
 
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    //     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-        if (status !== 'granted') {
+    //     if (status !== 'granted') {
 
-            Alert.alert('Maaf', 'Kami butuh izin akses galeri buat upload struk!', [{ text: 'Oke' }]);
+    //         Alert.alert('Maaf', 'Kami butuh izin akses galeri buat upload struk!', [{ text: 'Oke' }]);
 
-            return;
+    //         return;
 
-        }
+    //     }
 
-        let result = await ImagePicker.launchImageLibraryAsync({
+    //     let result = await ImagePicker.launchImageLibraryAsync({
 
-            mediaTypes: ['images'],
+    //         mediaTypes: ['images'],
 
-            allowsEditing: true,
+    //         allowsEditing: true,
 
-            aspect: [4, 3],
+    //         aspect: [4, 3],
 
-            quality: 0.5,
+    //         quality: 0.5,
 
-        });
+    //     });
 
-        if (!result.canceled) {
+    //     if (!result.canceled) {
 
-            setImage(result.assets[0].uri);
+    //         setImage(result.assets[0].uri);
 
-        }
+    //     }
 
-    };
+    // };
 
 
 
@@ -110,7 +112,8 @@ export default function CreateTransaction() {
             date: date.toISOString(),
             note: note,
             account: account,
-            imageUri: image,
+            // imageUri: image,
+            proofLink: proofLink,
             status: isEditMode ? 'approved' : autoStatus, 
             createdByRole: userRole 
         };
@@ -183,8 +186,14 @@ export default function CreateTransaction() {
                     </View>
 
                     <FloatingInput label="Kategori" value={category} onChangeText={setCategory} style={{ marginTop: 20 }} />
-
                     <Text style={styles.label}>Bukti Transaksi</Text>
+                    <FloatingInput 
+                        label='Paste Link Google Drive di sini...'
+                        value={proofLink}
+                        onChangeText={setProofLink}
+                        style={{marginBottom: 20}}
+                    />
+                    {/* <Text style={styles.label}>Bukti Transaksi</Text>
                     <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
                         {image ? (
                             <Image source={{ uri: image }} style={styles.previewImage} />
@@ -194,7 +203,7 @@ export default function CreateTransaction() {
                                 <Text style={{ color: '#aaa', marginTop: 5 }}>Tap untuk upload foto</Text>
                             </>
                         )}
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
 
                     <FloatingInput label="Catatan Tambahan" value={note} onChangeText={setNote} multiline numberOfLines={3} style={{ height: 100, marginTop: 20 }} />
                 </View>

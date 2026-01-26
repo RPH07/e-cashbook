@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     Modal, View, Text, StyleSheet, TouchableOpacity,
     Image, ScrollView, Dimensions, PanResponder, Animated, TouchableWithoutFeedback, Easing,
-    Alert
+    Alert, Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -145,6 +145,21 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
         }
     }
 
+    const handleOpenLink = async () => {
+        const link = transaction?.proofLink || transaction?.imageUri;
+
+        if (link) {
+            const supported = await Linking.canOpenURL(link);
+            if (supported) {
+                await Linking.openURL(link);
+            } else {
+                Alert.alert("Error", "Link tidak valid atau tidak bisa dibuka :(");
+            }
+        } else {
+            Alert.alert("Kosong", "Tidak ada link bukti transaksi.");
+        }
+    };
+
     return (
         <Modal
             visible={showModal}
@@ -214,7 +229,30 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                             </View>
                         </View>
 
-                        {transaction.imageUri && (
+                        {/* --- UPDATE BAGIAN BUKTI TRANSAKSI (JADI LINK G-DRIVE) --- */}
+                        <View style={styles.section}>
+                            <Text style={styles.label}>Bukti Transaksi</Text>
+                            {transaction.proofLink ? (
+                                <TouchableOpacity style={styles.linkCard} onPress={handleOpenLink}>
+                                    <View style={styles.iconCircle}>
+                                        <Ionicons name="logo-google" size={24} color="#DB4437" />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.linkTitle}>Buka File di Google Drive</Text>
+                                        <Text style={styles.linkSubtitle} numberOfLines={1}>
+                                            {transaction.proofLink}
+                                        </Text>
+                                    </View>
+                                    <Ionicons name="open-outline" size={20} color="#666" />
+                                </TouchableOpacity>
+                            ) : (
+                                <Text style={{ color: '#aaa', fontStyle: 'italic', marginTop: 5 }}>
+                                    Tidak ada link bukti dilampirkan.
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* {transaction.imageUri && (
                             <View style={styles.section} >
                                 <Text style={styles.label}>Bukti Transaksi</Text>
                                 <Image
@@ -222,7 +260,7 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                                     style={styles.proofImage}
                                 />
                             </View>
-                        )}
+                        )} */}
                     </ScrollView>
 
                     <View style={styles.footer}>
@@ -278,6 +316,18 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 10,
     },
+    linkCard: {
+        flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
+        padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#eee',
+        gap: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05,
+        marginTop: 8
+    },
+    iconCircle: {
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: '#ffebee', justifyContent: 'center', alignItems: 'center'
+    },
+    linkTitle: { fontWeight: 'bold', color: '#333', fontSize: 14 },
+    linkSubtitle: { color: '#888', fontSize: 12 },
     header: { padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center', backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
     dragHandle: { width: 40, height: 5, backgroundColor: '#ddd', borderRadius: 5, marginBottom: 10 },
     headerContent: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', paddingHorizontal: 10, alignItems: 'center' },
