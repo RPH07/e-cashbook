@@ -15,7 +15,7 @@ type TransactionType = 'pemasukan' | 'pengeluaran';
 
 export default function CreateTransaction() {
     const insets = useSafeAreaInsets();
-    const { addTransaction, updateTransaction, transactions, userRole } = useTransaction();
+    const { addTransaction, updateTransaction, transactions, userRole, userName } = useTransaction();
     
     const params = useLocalSearchParams();
     const editId = params.id as string;
@@ -114,6 +114,7 @@ export default function CreateTransaction() {
             // imageUri: image,
             proofLink: proofLink,
             createdByRole: userRole,
+            createdByName: userName,
             status: 'pending'
         };
 
