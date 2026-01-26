@@ -15,7 +15,7 @@ import * as XLSX from 'xlsx';
 
 export default function LaporanScreen() {
   // Ambil data mentah dari Context
-  const { transactions, userRole } = useTransaction();
+  const { transactions, userRole, recordLog } = useTransaction();
 
   // State buat nyimpen filter waktu yang lagi aktif
   const [filterMode, setFilterMode] = useState<'bulanan' | 'tahunan'>('bulanan');
@@ -301,6 +301,7 @@ export default function LaporanScreen() {
         </html>
       `;
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan PDF (Periode: ${periodLabel})`);
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
     } catch (error) {
       Alert.alert("Gagal", "Tidak bisa membuat PDF: " + error);
@@ -389,7 +390,7 @@ export default function LaporanScreen() {
       const fileName = `Laporan_${periodLabel.replace(/ /g, '_')}.xlsx`;
       const { Paths } = FileSystem;
       const file = new FileSystem.File(Paths.cache, fileName);
-      
+      recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan PDF (Periode: ${periodLabel})`);
       // Write menggunakan ArrayBuffer
       const uint8Array = new Uint8Array(wbout);
       await file.write(uint8Array);
