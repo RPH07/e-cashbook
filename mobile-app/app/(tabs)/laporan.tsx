@@ -10,6 +10,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTransaction } from '@/context/TransactionContext';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
+import * as XLSX from 'xlsx';
 
 export default function LaporanScreen() {
   // Ambil data mentah dari Context
@@ -131,8 +133,6 @@ export default function LaporanScreen() {
     return balances;
   }, [transactions]);
 
-
-  // Helper buat format Rupiah biar cantik
   const formatMoney = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency', currency: 'IDR', minimumFractionDigits: 0
@@ -147,91 +147,259 @@ export default function LaporanScreen() {
   const generatePDF = async () => {
     setIsGenerating(true);
     try {
+      const startDate = new Date(selectedDate);
+      const endDate = new Date(selectedDate);
+      
+      if (filterMode === 'bulanan') {
+          startDate.setDate(1); startDate.setHours(0,0,0,0);
+          endDate.setMonth(endDate.getMonth() + 1); endDate.setDate(0); endDate.setHours(23,59,59,999);
+      } else {
+          startDate.setMonth(0, 1); startDate.setHours(0,0,0,0);
+          endDate.setMonth(11, 31); endDate.setHours(23,59,59,999);
+      }
+
+      const statementTransactions = transactions
+        .filter(t => {
+            const tDate = new Date(t.date);
+            return t.status === 'approved' && tDate >= startDate && tDate <= endDate;
+        })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // logic saldo berjalan
+      let runningBalance = reportData.beginningBalance;
+      
+      const tableRows = statementTransactions.map(t => {
+          const isCredit = t.type === 'pemasukan';
+          const isDebit = t.type === 'pengeluaran';
+          
+          if (isCredit) runningBalance += t.amount;
+          else runningBalance -= t.amount;
+
+          const dateObj = new Date(t.date);
+          const dateStr = dateObj.toLocaleDateString('id-ID', {day: '2-digit', month: 'short', year: 'numeric'});
+          const timeStr = dateObj.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}).replace('.', ':');
+
+          const accountBadgeColor = t.account === 'Giro' ? '#e3f2fd' : '#fff3e0'; 
+          const accountTextColor = t.account === 'Giro' ? '#1565c0' : '#e65100';
+
+          return `
+            <tr>
+              <td style="text-align: left;">
+                <div style="font-weight: bold;">${dateStr}</div>
+                <div style="font-size: 10px; color: #666;">${timeStr}</div>
+              </td>
+              <td style="text-align: left;">
+                <div style="font-weight: bold;">${t.category}</div>
+                <div style="font-size: 10px; color: #666;">${t.note || '-'}</div>
+                <div style="font-size: 9px; color: #888; margin-top: 2px;">Ref: ${t.id.substring(0,8).toUpperCase()}</div>
+              </td>
+              <td style="text-align: center;">
+                <span style="background-color: ${accountBadgeColor}; color: ${accountTextColor}; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                  ${t.account.toUpperCase()}
+                </span>
+              </td>
+              <td style="text-align: right; color: #c62828;">${isDebit ? formatMoney(t.amount) : 'Rp0'}</td>
+              <td style="text-align: right; color: #2e7d32;">${isCredit ? formatMoney(t.amount) : 'Rp0'}</td>
+              <td style="text-align: right; font-weight: bold;">${formatMoney(runningBalance)}</td>
+            </tr>
+          `;
+      }).join('');
+
       const htmlContent = `
         <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
             <style>
-              body { font-family: 'Helvetica', sans-serif; padding: 20px; color: #333; }
-              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1a5dab; padding-bottom: 10px; }
-              .title { font-size: 24px; font-weight: bold; color: #1a5dab; margin: 0; }
-              .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
-              .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-              .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
-              .label { font-size: 14px; color: #555; }
-              .value { font-size: 14px; font-weight: bold; }
-              .income { color: #2e7d32; }
-              .expense { color: #c62828; }
-              .divider { border-top: 1px solid #eee; margin: 10px 0; }
-              .total-row { font-size: 16px; border-top: 2px solid #333; padding-top: 10px; margin-top: 10px; }
-              .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #aaa; }
-              .signature { margin-top: 40px; display: flex; justify-content: space-between; padding: 0 50px; }
-              .sig-box { text-align: center; }
-              .sig-line { margin-top: 60px; border-top: 1px solid #333; width: 150px; }
+              body { font-family: 'Helvetica', sans-serif; padding: 30px; color: #333; font-size: 11px; }
+              
+              .header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #1a5dab; padding-bottom: 10px; }
+              .brand { color: #1a5dab; font-size: 24px; font-weight: bold; display: flex; align-items: center; }
+              .brand span { color: #1a5dab; margin-left: 5px; }
+              
+              .report-info { text-align: right; }
+              .report-title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 5px; text-transform: uppercase; }
+              
+              .info-box { background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+              .info-label { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+              .info-value { font-size: 14px; font-weight: bold; color: #333; }
+              
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              
+              th { background-color: #1a5dab; color: white; padding: 8px; text-align: left; font-size: 10px; text-transform: uppercase; }
+              
+              td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+              tr:nth-child(even) { background-color: #fafafa; }
+              
+              .summary-section { margin-top: 20px; display: flex; justify-content: flex-end; }
+              .summary-table { width: 300px; }
+              .summary-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #ccc; }
+              .summary-total { display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid #333; margin-top: 5px; font-weight: bold; font-size: 14px; }
+              
+              .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 10px; }
             </style>
           </head>
           <body>
             <div class="header">
-              <h1 class="title">LAPORAN KEUANGAN</h1>
-              <p class="subtitle">Periode: ${periodLabel}</p>
-            </div>
-
-            <h3>Ringkasan Mutasi Kas</h3>
-            <div class="card">
-              <div class="row">
-                <span class="label">Saldo Awal</span>
-                <span class="value">${formatMoney(reportData.beginningBalance)}</span>
-              </div>
-              <div class="divider"></div>
-              <div class="row">
-                <span class="label">(+) Total Pemasukan</span>
-                <span class="value income">${formatMoney(reportData.income)}</span>
-              </div>
-              <div class="row">
-                <span class="label">(-) Total Pengeluaran</span>
-                <span class="value expense">${formatMoney(reportData.expense)}</span>
-              </div>
-              <div class="row total-row">
-                <span class="label">SALDO AKHIR</span>
-                <span class="value">${formatMoney(reportData.endingBalance)}</span>
+              <div class="brand">E-CASH<span>BOOK</span></div>
+              <div class="report-info">
+                <div class="report-title">Laporan Rekening</div>
+                <div>Periode: ${periodLabel}</div>
               </div>
             </div>
 
-            <h3>Rincian Pengeluaran Terbesar</h3>
-            <div class="card">
-              ${reportData.topExpenses.length > 0 ? reportData.topExpenses.map(cat => `
-                <div class="row">
-                  <span class="label">${cat.name} (${cat.percentage.toFixed(1)}%)</span>
-                  <span class="value expense">${formatMoney(cat.total)}</span>
+            <div class="info-box">
+              <div>
+                <div class="info-label">Nama Pemilik</div>
+                <div class="info-value">${userRole === 'admin' ? 'ADMINISTRATOR' : 'STAFF KEUANGAN'}</div>
+                <div class="info-label" style="margin-top: 10px;">ID User</div>
+                <div class="info-value">USER-${Math.floor(Math.random() * 10000)}</div>
+              </div>
+              <div style="text-align: right;">
+                  <div class="info-label">Saldo Awal (Beginning Balance)</div>
+                  <div class="info-value" style="font-size: 16px;">${formatMoney(reportData.beginningBalance)}</div>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th width="15%">Tanggal</th>
+                  <th width="30%">Uraian Transaksi</th>
+                  <th width="10%" style="text-align: center;">Akun</th>
+                  <th width="15%" style="text-align: right;">Debit</th> 
+                  <th width="15%" style="text-align: right;">Kredit</th>
+                  <th width="15%" style="text-align: right;">Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows.length > 0 ? tableRows : '<tr><td colspan="6" style="text-align:center; padding: 20px;">Tidak ada transaksi pada periode ini.</td></tr>'}
+              </tbody>
+            </table>
+
+            <div class="summary-section">
+              <div class="summary-table">
+                <div class="summary-row">
+                    <span>Mutasi Debit (-)</span>
+                    <span style="color: #c62828;">${formatMoney(reportData.expense)}</span>
                 </div>
-              `).join('') : '<p style="text-align:center; color:#999;">Tidak ada pengeluaran</p>'}
-            </div>
-
-            <div class="signature">
-              <div class="sig-box">
-                <p>Dibuat Oleh,</p>
-                <div class="sig-line"></div>
-                <p><b>Staff Admin</b></p>
-              </div>
-              <div class="sig-box">
-                <p>Disetujui Oleh,</p>
-                <div class="sig-line"></div>
-                <p><b>${userRole === 'admin' ? 'Administrator' : 'Finance Manager'}</b></p>
+                <div class="summary-row">
+                    <span>Mutasi Kredit (+)</span>
+                    <span style="color: #2e7d32;">${formatMoney(reportData.income)}</span>
+                </div>
+                <div class="summary-total">
+                    <span>Saldo Akhir</span>
+                    <span>${formatMoney(reportData.endingBalance)}</span>
+                </div>
               </div>
             </div>
-
             <div class="footer">
-              <p>Dicetak otomatis oleh E-CashBook Mobile App</p>
-              <p>Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}</p>
+              <p>Dokumen ini diterbitkan secara elektronik oleh sistem E-CashBook dan sah tanpa tanda tangan basah.</p>
+              <p>Dicetak pada: ${new Date().toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
           </body>
         </html>
       `;
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
       await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
-
     } catch (error) {
       Alert.alert("Gagal", "Tidak bisa membuat PDF: " + error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const exportToExcel = async () => {
+    setIsGenerating(true);
+    try {
+      // Filter transaksi berdasarkan periode
+      const startDate = new Date(selectedDate);
+      const endDate = new Date(selectedDate);
+
+      if (filterMode === 'bulanan') {
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setDate(0);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        startDate.setMonth(0, 1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setMonth(11, 31);
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      const filteredTransactions = transactions.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate >= startDate && tDate <= endDate;
+      });
+
+      // Sheet 1: Ringkasan
+      const summaryData = [
+        ['LAPORAN KEUANGAN'],
+        [`Periode: ${periodLabel}`],
+        [''],
+        ['Ringkasan Mutasi Kas'],
+        ['Saldo Awal', reportData.beginningBalance],
+        ['(+) Total Pemasukan', reportData.income],
+        ['(-) Total Pengeluaran', reportData.expense],
+        ['Saldo Akhir', reportData.endingBalance],
+        [''],
+        ['Pengeluaran Terbesar'],
+        ['Kategori', 'Jumlah', 'Persentase'],
+        ...reportData.topExpenses.map(cat => [
+          cat.name,
+          cat.total,
+          `${cat.percentage.toFixed(1)}%`
+        ]),
+        [''],
+        ['Posisi Saldo Per Akun'],
+        ['Akun', 'Saldo'],
+        ...Object.keys(accountBalances).map(acc => [
+          acc,
+          accountBalances[acc]
+        ])
+      ];
+
+      // Sheet 2: Detail Transaksi
+      const transactionData = [
+        ['Tanggal', 'Tipe', 'Kategori', 'Akun', 'Jumlah', 'Catatan', 'Status'],
+        ...filteredTransactions.map(t => [
+          new Date(t.date).toLocaleDateString('id-ID'),
+          t.type,
+          t.category,
+          t.account,
+          t.amount,
+          t.note || '',
+          t.status
+        ])
+      ];
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
+      const ws2 = XLSX.utils.aoa_to_sheet(transactionData);
+      
+      XLSX.utils.book_append_sheet(wb, ws1, 'Ringkasan');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Detail Transaksi');
+
+      // Generate file sebagai array
+      const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+      
+      const fileName = `Laporan_${periodLabel.replace(/ /g, '_')}.xlsx`;
+      const { Paths } = FileSystem;
+      const file = new FileSystem.File(Paths.cache, fileName);
+      
+      // Write menggunakan ArrayBuffer
+      const uint8Array = new Uint8Array(wbout);
+      await file.write(uint8Array);
+      await Sharing.shareAsync(file.uri, {
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        dialogTitle: 'Export Laporan ke Excel'
+      });
+
+      Alert.alert('Berhasil', 'File Excel berhasil dibuat!');
+    } catch (error) {
+      Alert.alert('Gagal', 'Tidak bisa membuat file Excel: ' + error);
     } finally {
       setIsGenerating(false);
     }
@@ -286,6 +454,21 @@ export default function LaporanScreen() {
             <>
               <Ionicons name="print-outline" size={20} color="white" style={{ marginRight: 8 }} />
               <Text style={styles.pdfText}>CETAK LAPORAN (PDF)</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.excelButton}
+          onPress={exportToExcel}
+          disabled={isGenerating}
+        >
+          {isGenerating ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <>
+              <Ionicons name="document-text-outline" size={20} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.pdfText}>EXPORT KE EXCEL</Text>
             </>
           )}
         </TouchableOpacity>
@@ -434,6 +617,10 @@ const styles = StyleSheet.create({
   dateLabel: { color: '#1a5dab', fontWeight: 'bold', fontSize: 16 },
   pdfButton: {
     backgroundColor: '#1a5dab', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    padding: 15, borderRadius: 10, marginBottom: 12, elevation: 3
+  },
+  excelButton: {
+    backgroundColor: '#2e7d32', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     padding: 15, borderRadius: 10, marginBottom: 20, elevation: 3
   },
   pdfText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
