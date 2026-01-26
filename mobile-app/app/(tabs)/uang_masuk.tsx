@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import TransactionCard, { Transaction } from '@/components/TransactionCard';
-import { useTransaction } from '@/context/TransactionContext';
+import TransactionCard from '@/components/TransactionCard';
+import { useTransaction, Transaction } from '@/context/TransactionContext';
 import TransactionDetailModal from '@/components/TransactionDetailModal';
 
 export default function UangMasuk() {
