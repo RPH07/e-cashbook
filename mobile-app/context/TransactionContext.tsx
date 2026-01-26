@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { transactionService } from '@/services/transactionService';
 
 export interface Transaction {
     id: string;
@@ -19,33 +20,42 @@ export type UserRole = 'admin' | 'finance' | 'staff';
 interface TransactionContextType {
     transactions: Transaction[];
     userRole: UserRole;
-    setUserRole: (role: UserRole) => void;
-    addTransaction: (tx: Transaction) => void;
-    deleteTransaction: (id: string) => void;
-    updateTransaction: (tx: Transaction) => void;
-    approveTransaction: (id: string) => void;
+    setUserRole: (role: UserRole) => Promise<void>;
+    addTransaction: (tx: Transaction) => Promise<void>;
+    deleteTransaction: (id: string) => Promise<void>;
+    updateTransaction: (tx: Transaction) => Promise<void>;
+    approveTransaction: (id: string) => Promise<void>;
 }
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
 
 export const TransactionProvider = ({ children }: { children: ReactNode }) => {
-    // Dummy Data Awal 
-    const [transactions, setTransactions] = useState<Transaction[]>([
-        {
-            id: '1', type: 'pemasukan', amount: 5000000, category: 'Proyek Website',
-            date: new Date().toISOString(), account: 'Giro', note: 'DP Project',
-            status: 'approved', createdByRole: 'admin' // Data lama anggap admin
-        },
-    ]);
-
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [userRole, setUserRole] = useState<UserRole>('staff'); 
 
     useEffect(() => {
-        const loadRole = async () => {
-            const stored = await SecureStore.getItemAsync('userRole');
-            if (stored) setUserRole(stored as UserRole);
+        const loadInitialData = async () => {
+            const storedRole = await SecureStore.getItemAsync('userRole');
+            if (storedRole) setUserRole(storedRole as UserRole);
+
+            try {
+                const apiData = await transactionService.getAll();
+                if(Array.isArray(apiData) && apiData.length > 0) {
+                    setTransactions(apiData);
+                } else {
+                    setTransactions([
+                        {
+                            id: '1', type: 'pemasukan', amount: 5000000, category: 'Proyek Website',
+                            date: new Date().toISOString(), account: 'Giro', note: 'DP Project',
+                            status: 'approved', createdByRole: 'admin'
+                        }
+                    ]);
+                }
+            } catch (error) {
+                console.log("Gagal load data: ", error)
+            }
         };
-        loadRole();
+        loadInitialData();
     }, []);
 
     const changeUserRole = async (role: UserRole) => {
@@ -53,32 +63,74 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         await SecureStore.setItemAsync('userRole', role);
     };
 
-    const addTransaction = (tx: Transaction) => {
-        const autoStatus = userRole === 'staff' ? 'pending' : 'approved';
+    const addTransaction = async (tx: Transaction) => {
 
-        const newTx: Transaction = {
-            ...tx,
-            status: autoStatus,
-            createdByRole: userRole
-        };
+        try {
+            const newTx = await transactionService.create({
+                type: tx.type,
+                amount: tx.amount,
+                category: tx.category,
+                date: tx.date,
+                note: tx.note,
+                account: tx.account,
+                imageUri: tx.imageUri
+            });
 
-        setTransactions((prev) => [newTx, ...prev]);
+            console.log("Data balik dari Service:", newTx);
+
+            const finalTx: Transaction = {
+                ...newTx,
+                status: userRole === 'staff' ? 'pending' : 'pending',
+                createdByRole: userRole
+            };
+
+            setTransactions((prev) => [finalTx, ...prev]);
+        } catch (error) {
+            console.error(error)
+            throw error;
+        }
     };
 
-    const deleteTransaction = (id: string) => {
-        setTransactions((prev) => prev.filter((item) => item.id !== id));
+    const deleteTransaction = async (id: string) => {
+        try {
+            await transactionService.delete(id);
+            setTransactions((prev) => prev.filter((item) => item.id !== id));
+        } catch (error) {
+            console.error(error);
+            throw error;
+        }
     };
 
-    const updateTransaction = (updatedTx: Transaction) => {
-        setTransactions((prev) =>
-            prev.map((item) => (item.id === updatedTx.id ? updatedTx : item))
-        );
+    const updateTransaction = async (updatedTx: Transaction) => {
+        try {
+            await transactionService.update(updatedTx.id, {
+                type: updatedTx.type,
+                amount: updatedTx.amount,
+                category: updatedTx.category,
+                date: updatedTx.date,
+                note: updatedTx.account,
+                imageUri: updatedTx.imageUri
+            });
+
+            setTransactions((prev) =>
+                prev.map((item) => (item.id === updatedTx.id ? updatedTx : item))
+            );
+        } catch (error) {
+            console.error(error);
+            throw error;
+        }
     };
 
-    const approveTransaction = (id: string) => {
-        setTransactions((prev) =>
-            prev.map((item) => (item.id === id ? { ...item, status: 'approved' } : item))
-        );
+    const approveTransaction = async (id: string) => {
+        try {
+            await transactionService.approve(id);
+            setTransactions((prev) =>
+                prev.map((item) => (item.id === id ? { ...item, status: 'approved' } : item))
+            );
+        } catch (error) {
+            console.error(error);
+            throw error;
+        }
     };
 
     return (
