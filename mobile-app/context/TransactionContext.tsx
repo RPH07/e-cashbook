@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { transactionService } from '@/services/transactionService';
 
 export interface Transaction {
@@ -53,7 +54,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const saveLogsToStorage = async (newLogs: AuditLog[]) => {
         try {
-            await SecureStore.setItemAsync('appLogs', JSON.stringify(newLogs));
+            await AsyncStorage.setItem('appLogs', JSON.stringify(newLogs));
         } catch (error) {
             console.log("Gagal Menyimpan: ", error);
         }
@@ -81,7 +82,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         const loadInitialData = async () => {
             const storedRole = await SecureStore.getItemAsync('userRole');
             const storedName = await SecureStore.getItemAsync('userName');
-            const storedLogs = await SecureStore.getItemAsync('appLogs');
+            const storedLogs = await AsyncStorage.getItem('appLogs');
 
             if (storedRole) setUserRole(storedRole as UserRole);
             if(storedName) setUserName(storedName);
@@ -174,8 +175,6 @@ const addTransaction = async (tx: Transaction) => {
         try {
             const forcedStatus: 'pending' | 'approved' | 'rejected' = 
                 (userRole === 'admin' || userRole === 'finance') ? 'approved' : 'pending';
-
-            // Gabungin data baru dengan status yang udah dipaksa
             const finalTx = {
                 ...updatedTx,
                 status: forcedStatus 
