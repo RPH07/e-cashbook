@@ -302,14 +302,24 @@ export default function LaporanScreen() {
         </html>
       `;
       const fileName = filterMode === 'bulanan'
-        ? `Laporan_Keuangan_${selectedDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).replace(/ /g, '_').toLowerCase()}.pdf`
-        : `Laporan_Keuangan_${selectedDate.getFullYear()}.pdf`;
+        ? `laporan_keuangan_${selectedDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).replace(/ /g, '_').toLowerCase()}.pdf`
+        : `laporan_keuangan_${selectedDate.getFullYear()}.pdf`;
+      
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      const newFile = new FileSystem.File(FileSystem.Paths.cache, fileName);
-      const originalFile = new FileSystem.File(uri);
-      await originalFile.copy(newFile);
+      
+      // Copy dengan nama yang benar
+      const finalFile = new FileSystem.File(FileSystem.Paths.cache, fileName);
+      const tempFile = new FileSystem.File(uri);
+      
+      // Hapus file lama jika ada untuk avoid konflik
+      if (finalFile.exists) {
+        await finalFile.delete();
+      }
+      
+      await tempFile.copy(finalFile);
+      
       recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan PDF (Periode: ${periodLabel})`);
-      await Sharing.shareAsync(newFile.uri, { 
+      await Sharing.shareAsync(finalFile.uri, { 
         UTI: '.pdf', 
         mimeType: 'application/pdf'
       });
@@ -397,19 +407,24 @@ export default function LaporanScreen() {
       // Generate file sebagai array
       const wbout = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
       
-      const fileName = `Laporan_${periodLabel.replace(/ /g, '_')}.xlsx`;
-      const { Paths } = FileSystem;
-      const file = new FileSystem.File(Paths.cache, fileName);
-      recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan PDF (Periode: ${periodLabel})`);
+      const fileName = `laporan_${periodLabel.replace(/ /g, '_').toLowerCase()}.xlsx`;
+      
+      const file = new FileSystem.File(FileSystem.Paths.cache, fileName);
+      
+      // Hapus file lama jika ada untuk avoid konflik
+      if (file.exists) {
+        await file.delete();
+      }
+      
+      recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan Excel (Periode: ${periodLabel})`);
+      
       // Write menggunakan ArrayBuffer
       const uint8Array = new Uint8Array(wbout);
       await file.write(uint8Array);
+      
       await Sharing.shareAsync(file.uri, {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        dialogTitle: 'Export Laporan ke Excel'
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
-
-      Alert.alert('Berhasil', 'File Excel berhasil dibuat!');
     } catch (error) {
       Alert.alert('Gagal', 'Tidak bisa membuat file Excel: ' + error);
     } finally {
