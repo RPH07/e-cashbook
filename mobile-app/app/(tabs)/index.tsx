@@ -1,26 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-    View, Text, StyleSheet, ScrollView, TouchableOpacity,
-    StatusBar, Dimensions, Modal, FlatList
+    View, Text, StyleSheet, TouchableOpacity,
+    StatusBar, Dimensions, Modal, FlatList, Animated, ScrollView 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { LineChart } from "react-native-gifted-charts";
-import { useTransaction, AuditLog } from '@/context/TransactionContext';
+import { useTransaction } from '@/context/TransactionContext';
 
 // TYPE BUAT CARD LOG
 type LogCategory = 'data' | 'system';
 
+// config animasi header
+const HEADER_MAX_HEIGHT = 320;
+const HEADER_MIN_HEIGHT = 100; 
+const SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+
 export default function Dashboard() {
-    const { transactions, userRole, userName, logs, setUserRole } = useTransaction();
+    const { transactions, userRole, userName, logs } = useTransaction();
     const screenWidth = Dimensions.get('window').width;
 
-    // State buat Modal Log
+    // State
     const [showLogModal, setShowLogModal] = useState(false);
     const [logCategory, setLogCategory] = useState<LogCategory>('data');
+    
+    const accounts = ['Semua', 'Giro', 'Tabungan', 'Kas Kecil']; 
+    const [selectedAccount, setSelectedAccount] = useState('Semua');
 
-    // --- LOGIC LOGOUT ---
+    // Anmasi scroll
+    const scrollY = useRef(new Animated.Value(0)).current;
+
+    // Logic interpolasi
+    const headerTranslateY = scrollY.interpolate({
+        inputRange: [0, SCROLL_DISTANCE],
+        outputRange: [0, -SCROLL_DISTANCE],
+        extrapolate: 'clamp',
+    });
+
+    const balanceOpacity = scrollY.interpolate({
+        inputRange: [0, SCROLL_DISTANCE / 2], 
+        outputRange: [1, 0],
+        extrapolate: 'clamp',
+    });
+
+    const userInfoTranslateY = scrollY.interpolate({
+        inputRange: [0, SCROLL_DISTANCE],
+        outputRange: [0, SCROLL_DISTANCE - 10], 
+        extrapolate: 'clamp',
+    });
+
     const handleLogout = async () => {
         try {
             await SecureStore.deleteItemAsync('userToken');
@@ -31,45 +60,46 @@ export default function Dashboard() {
         } catch (error) { console.error("Gagal logout:", error); }
     };
 
-    // --- LOGIC HITUNG SALDO (Approved Only) ---
-    const totalIncome = transactions
-        .filter(t => t.type === 'pemasukan' && t.status === 'approved')
+    // Filter dulu transaksinya
+    const filteredTransactions = transactions.filter(t => {
+        const isApproved = t.status === 'approved';
+        const isAccountMatch = selectedAccount === 'Semua' ? true : t.account === selectedAccount;
+        return isApproved && isAccountMatch;
+    });
+
+    // Hitung dari hasil filter
+    const totalIncome = filteredTransactions
+        .filter(t => t.type === 'pemasukan')
         .reduce((sum, t) => sum + t.amount, 0);
 
-    const totalExpense = transactions
-        .filter(t => t.type === 'pengeluaran' && t.status === 'approved')
+    const totalExpense = filteredTransactions
+        .filter(t => t.type === 'pengeluaran')
         .reduce((sum, t) => sum + t.amount, 0);
 
     const balance = totalIncome - totalExpense;
 
-    // --- LOGIC STAFF TRACKER ---
-    // Hitung berapa transaksi staff yg masih pending/ditolak
+    // logic tracker user
     const myPendingCount = transactions.filter(t => t.createdByRole === 'staff' && t.status === 'pending').length;
     const myRejectedCount = transactions.filter(t => t.createdByRole === 'staff' && t.status === 'rejected').length;
 
-    // --- LOGIC FILTER LOG (ADMIN) ---
+    // logic filter log
     const filteredLogs = logs.filter(log => {
         if (logCategory === 'data') {
-            // Log Data: Create, Update, Delete
             return ['CREATE', 'UPDATE', 'DELETE'].includes(log.actionType);
         } else {
-            // Log Sistem: Login, Export, Approve
-            return ['LOGIN', 'EXPORT', 'APPROVE'].includes(log.actionType);
+            return ['LOGIN', 'EXPORT', 'APPROVE', 'REJECT'].includes(log.actionType);
         }
-    }); // Urutkan dari terbaru
-    
-    // Format Duit
+    });
+
     const formatMoney = (val: number) => {
         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
     };
 
-    // Buka Modal Log
     const openLog = (category: LogCategory) => {
         setLogCategory(category);
         setShowLogModal(true);
     };
 
-    // --- RENDER MENU ITEM (GRID) ---
     const renderMenuItem = (title: string, icon: any, color: string, bgColor: string, onPress: () => void) => (
         <TouchableOpacity style={styles.menuItem} onPress={onPress}>
             <View style={[styles.iconBox, { backgroundColor: bgColor }]}>
@@ -79,7 +109,6 @@ export default function Dashboard() {
         </TouchableOpacity>
     );
 
-    // --- DATA GRAFIK DUMMY (Biar Tampilan Rame) ---
     const dataGrafik = [
         { value: 15, label: 'Sen' }, { value: 30, label: 'Sel' },
         { value: 26, label: 'Rab' }, { value: 40, label: 'Kam' },
@@ -90,47 +119,100 @@ export default function Dashboard() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#1a5dab" />
             
-            {/* --- HEADER --- */}
-            <View style={styles.header}>
-                <View style={styles.userInfo}>
+            {/* animated header */}
+            <Animated.View style={[styles.header, { 
+                transform: [{ translateY: headerTranslateY }], 
+                height: HEADER_MAX_HEIGHT,
+                zIndex: 100, 
+            }]}>
+                
+                {/* user info*/}
+                <Animated.View style={[
+                    styles.userInfo, 
+                    { 
+                        transform: [{ translateY: userInfoTranslateY }],
+                        zIndex: 101, 
+                        backgroundColor: 'transparent' 
+                    }
+                ]}>
                     <View>
                         <Text style={styles.greeting}>Halo, {userName}</Text>
-                        <Text style={styles.subtitle}>{userRole === 'admin' ? 'Administrator' : userRole === 'finance' ? 'Finance' : 'Staff Staff'}</Text>
+                        <Text style={styles.subtitle}>
+                            {userRole === 'admin' ? 'Administrator' : userRole === 'finance' ? 'Finance' : 'Staff Staff'}
+                        </Text>
                     </View>
                     <TouchableOpacity onPress={handleLogout}>
                         <Ionicons name="log-out-outline" size={24} color="white" />
                     </TouchableOpacity>
-                </View>
+                </Animated.View>
 
-                {/* --- TOTAL SALDO CARD --- */}
-                <View style={styles.balanceCard}>
-                    <Text style={styles.balanceLabel}>Total Saldo (Real-Time)</Text>
-                    <Text style={styles.balanceValue}>{formatMoney(balance)}</Text>
+                {/* Saldo Card  */}
+                <Animated.View style={{ opacity: balanceOpacity }}>
+                    
+                    {/* filter akun */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 15, marginTop: -10}}>
+                        {accounts.map((acc, index) => (
+                            <TouchableOpacity 
+                                key={index} 
+                                onPress={() => setSelectedAccount(acc)}
+                                style={[
+                                    styles.accountPill, 
+                                    selectedAccount === acc ? styles.accountPillActive : styles.accountPillInactive
+                                ]}
+                            >
+                                <Text style={[
+                                    styles.accountPillText,
+                                    selectedAccount === acc ? {color: '#1a5dab'} : {color: '#e3f2fd'}
+                                ]}>
+                                    {acc}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
 
-                    <View style={styles.rowSummary}>
-                        <View style={styles.summaryItem}>
-                            <View style={styles.summaryIconLabel}>
-                                <Ionicons name="arrow-down-circle" size={20} color="#e8f5e9" />
-                                <Text style={styles.summaryLabel}>Pemasukan</Text>
+                    <View style={styles.balanceCard}>
+                        <Text style={styles.balanceLabel}>
+                            Total Saldo ({selectedAccount})
+                        </Text>
+                        <Text style={styles.balanceValue}>{formatMoney(balance)}</Text>
+
+                        <View style={styles.rowSummary}>
+                            <View style={styles.summaryItem}>
+                                <View style={styles.summaryIconLabel}>
+                                    <Ionicons name="arrow-down-circle" size={20} color="#e8f5e9" />
+                                    <Text style={styles.summaryLabel}>Pemasukan</Text>
+                                </View>
+                                <Text style={styles.summaryValue}>{formatMoney(totalIncome)}</Text>
                             </View>
-                            <Text style={styles.summaryValue}>{formatMoney(totalIncome)}</Text>
-                        </View>
-                        <View style={styles.summaryItem}>
-                            <View style={styles.summaryIconLabel}>
-                                <Ionicons name="arrow-up-circle" size={20} color="#ffebee" />
-                                <Text style={styles.summaryLabel}>Pengeluaran</Text>
+                            <View style={styles.summaryItem}>
+                                <View style={styles.summaryIconLabel}>
+                                    <Ionicons name="arrow-up-circle" size={20} color="#ffebee" />
+                                    <Text style={styles.summaryLabel}>Pengeluaran</Text>
+                                </View>
+                                <Text style={styles.summaryValue}>{formatMoney(totalExpense)}</Text>
                             </View>
-                            <Text style={styles.summaryValue}>{formatMoney(totalExpense)}</Text>
                         </View>
                     </View>
-                </View>
-            </View>
+                </Animated.View>
+            </Animated.View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            {/* scroll content */}
+            <Animated.ScrollView 
+                contentContainerStyle={{
+                    paddingTop: HEADER_MAX_HEIGHT - 20, 
+                    paddingHorizontal: 20,
+                    paddingBottom: 100
+                }}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: true }
+                )}
+                scrollEventThrottle={16} 
+            >
                 
-                {/* --- GRAFIK (Untuk Semua User) --- */}
+                {/* grafik */}
                 <View style={styles.chartContainer}>
-                    <Text style={styles.sectionTitle}>Grafik Arus Kas</Text>
+                    <Text style={styles.sectionTitle}>Grafik Arus Kas ({selectedAccount})</Text>
                     <LineChart
                         data={dataGrafik} color="#1a5dab" thickness={3}
                         dataPointsColor="#1a5dab" startFillColor="#1a5dab" endFillColor="#1a5dab"
@@ -140,10 +222,8 @@ export default function Dashboard() {
                     />
                 </View>
 
-                {/* --- CONDITIONAL MENU BERDASARKAN ROLE --- */}
-
+                {/* menu */}
                 {(userRole === 'admin' || userRole === 'finance') ? (
-                    // === TAMPILAN ADMIN/FINANCE (MENU PENGAWASAN) ===
                     <>
                         <Text style={styles.sectionTitle}>Menu Pengawasan (Audit)</Text>
                         <View style={styles.grid}>
@@ -154,15 +234,10 @@ export default function Dashboard() {
                         </View>
                     </>
                 ) : (
-                    // === TAMPILAN STAFF (STATUS TRACKER) ===
                     <>
                         <Text style={styles.sectionTitle}>Status Pengajuan Anda</Text>
-                        
-                        {/* Card Pending */}
                         <TouchableOpacity style={[styles.statusCard, {backgroundColor: '#fff9c4', borderColor:'#fff176'}]}>
-                            <View style={styles.statusIconBox}>
-                                <Ionicons name="time-outline" size={32} color="#f57f17" />
-                            </View>
+                            <View style={styles.statusIconBox}><Ionicons name="time-outline" size={32} color="#f57f17" /></View>
                             <View style={{flex: 1}}>
                                 <Text style={styles.statusTitle}>Menunggu Persetujuan</Text>
                                 <Text style={styles.statusDesc}>Transaksi yang belum di-ACC Admin</Text>
@@ -170,11 +245,8 @@ export default function Dashboard() {
                             <Text style={[styles.statusCount, {color: '#f57f17'}]}>{myPendingCount}</Text>
                         </TouchableOpacity>
 
-                        {/* Card Rejected */}
                         <TouchableOpacity style={[styles.statusCard, {backgroundColor: '#ffebee', borderColor:'#ffcdd2', marginTop: 15}]}>
-                            <View style={styles.statusIconBox}>
-                                <Ionicons name="alert-circle-outline" size={32} color="#c62828" />
-                            </View>
+                            <View style={styles.statusIconBox}><Ionicons name="alert-circle-outline" size={32} color="#c62828" /></View>
                             <View style={{flex: 1}}>
                                 <Text style={styles.statusTitle}>Ditolak / Revisi</Text>
                                 <Text style={styles.statusDesc}>Transaksi yang perlu diperbaiki</Text>
@@ -189,28 +261,20 @@ export default function Dashboard() {
                         </View>
                     </>
                 )}
-            </ScrollView>
+            </Animated.ScrollView>
 
-            {/* --- FAB (TOMBOL TAMBAH) --- */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => router.push('/transaction/create')}
-            >
+            {/* FAB */}
+            <TouchableOpacity style={styles.fab} onPress={() => router.push('/transaction/create')}>
                 <Ionicons name="add" size={30} color="white" />
             </TouchableOpacity>
 
-            {/* --- MODAL LOG VIEWER (POPUP CCTV) --- */}
+            {/* Modal Log */}
             <Modal visible={showLogModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowLogModal(false)}>
                 <View style={styles.modalContainer}>
                     <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>
-                            {logCategory === 'data' ? '📋 Riwayat Perubahan Data' : '👣 Log Aktivitas User'}
-                        </Text>
-                        <TouchableOpacity onPress={() => setShowLogModal(false)}>
-                            <Ionicons name="close-circle" size={30} color="#ccc" />
-                        </TouchableOpacity>
+                        <Text style={styles.modalTitle}>{logCategory === 'data' ? '📋 Riwayat Perubahan Data' : '👣 Log Aktivitas User'}</Text>
+                        <TouchableOpacity onPress={() => setShowLogModal(false)}><Ionicons name="close-circle" size={30} color="#ccc" /></TouchableOpacity>
                     </View>
-                    
                     <FlatList
                         data={filteredLogs}
                         keyExtractor={(item) => item.id}
@@ -248,9 +312,11 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f8f9fa' },
     header: {
-        backgroundColor: '#1a5dab', padding: 20, paddingTop: 50,
+        position: 'absolute', top: 0, left: 0, right: 0,
+        backgroundColor: '#1a5dab', 
+        paddingHorizontal: 20, paddingTop: 50,
         borderBottomLeftRadius: 30, borderBottomRightRadius: 30,
-        paddingBottom: 40, marginBottom: -20, zIndex: 1
+        zIndex: 10, elevation: 5
     },
     userInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     greeting: { fontSize: 18, color: '#e3f2fd' },
@@ -266,7 +332,17 @@ const styles = StyleSheet.create({
     summaryIconLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     summaryLabel: { color: '#e3f2fd', fontSize: 12 },
     summaryValue: { color: 'white', fontWeight: 'bold', fontSize: 14 },
-    content: { padding: 20, paddingTop: 30, paddingBottom: 100 },
+    
+    // --- [BARU] STYLE PIL AKUN ---
+    accountPill: {
+        paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20, marginRight: 10,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)'
+    },
+    accountPillActive: { backgroundColor: 'white' },
+    accountPillInactive: { backgroundColor: 'rgba(255,255,255,0.1)' },
+    accountPillText: { fontSize: 12, fontWeight: 'bold' },
+
+    // CONTENT
     sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
     chartContainer: {
         backgroundColor: 'white', borderRadius: 15, padding: 20, marginBottom: 25,
@@ -285,8 +361,6 @@ const styles = StyleSheet.create({
         position: 'absolute', bottom: 30, right: 30, width: 60, height: 60,
         borderRadius: 30, backgroundColor: '#1a5dab', justifyContent: 'center', alignItems: 'center', elevation: 5
     },
-    
-    // STYLE STAFF TRACKER
     statusCard: {
         flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 12,
         borderWidth: 1, gap: 15
@@ -296,7 +370,7 @@ const styles = StyleSheet.create({
     statusDesc: { fontSize: 12, color: '#666' },
     statusCount: { fontSize: 24, fontWeight: 'bold' },
 
-    // STYLE MODAL LOG
+    // STYLE MODAL
     modalContainer: { flex: 1, backgroundColor: '#f0f2f5' },
     modalHeader: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
