@@ -1,31 +1,31 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// Import tipe data biar aman
+// Import tipe transaction biar aman
 import { Transaction } from '@/context/TransactionContext';
 
 interface Props {
-    data: Transaction;
+    transaction: Transaction;
     onPress?: () => void;
 }
 
-const TransactionCard: React.FC<Props> = ({ data, onPress }) => {
-    const isIncome = data.type === 'pemasukan';
+const TransactionCard: React.FC<Props> = ({ transaction, onPress }) => {
+    const isIncome = transaction.type === 'pemasukan';
     const color = isIncome ? '#2e7d32' : '#c62828';
     const iconName = isIncome ? 'arrow-down-circle' : 'arrow-up-circle';
 
     // --- LOGIC STATUS ---
-    const isPending = data.status === 'pending';
-    const isRejected = data.status === 'rejected';
+    const isPending = transaction.status === 'pending';
+    const isRejected = transaction.status === 'rejected';
 
     const statusColor = isPending ? '#fbc02d' : (isRejected ? '#757575' : color);
     const bgColor = isPending ? '#fffde7' : (isIncome ? '#e8f5e9' : '#ffebee');
 
     const formattedAmount = new Intl.NumberFormat('id-ID', {
         style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-    }).format(data.amount);
+    }).format(transaction.amount);
 
-    const formattedDate = new Date(data.date).toLocaleDateString('id-ID', {
+    const formattedDate = new Date(transaction.date).toLocaleDateString('id-ID', {
         day: 'numeric', month: 'short', year: 'numeric'
     });
 
@@ -44,14 +44,14 @@ const TransactionCard: React.FC<Props> = ({ data, onPress }) => {
 
             <View style={styles.infoContainer}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={styles.category}>{data.category}</Text>
+                    <Text style={styles.category}>{transaction.category}</Text>
                     {isPending && (
                         <View style={styles.badge}>
                             <Text style={styles.badgeText}>PENDING</Text>
                         </View>
                     )}
                 </View>
-                <Text style={styles.date}>{formattedDate} • {data.account}</Text>
+                <Text style={styles.date}>{formattedDate} • {transaction.account}</Text>
             </View>
 
             <Text style={[styles.amount, { color: statusColor }]}>
