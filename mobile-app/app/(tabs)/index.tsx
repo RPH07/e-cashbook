@@ -145,7 +145,7 @@ export default function Dashboard() {
                     <View>
                         <Text style={styles.greeting}>Halo, {userName}</Text>
                         <Text style={styles.subtitle}>
-                            {userRole === 'admin' ? 'Administrator' : userRole === 'finance' ? 'Finance' : 'Staff Staff'}
+                            {userRole === 'admin' ? 'Administrator' : userRole === 'finance' ? 'Finance' : 'Staff'}
                         </Text>
                     </View>
                     <TouchableOpacity onPress={handleLogout}>
