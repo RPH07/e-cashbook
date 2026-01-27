@@ -4,8 +4,8 @@
 module.exports = {
   async up (queryInterface, Sequelize) {
     await queryInterface.bulkInsert('Accounts', [{
-      account_name: 'Demo Account',
-      account_type: 'tabungan',
+      account_name: 'Demo Account Giro',
+      account_type: 'giro',
       balance: 0,
       createdAt: new Date(),
       updatedAt: new Date()
