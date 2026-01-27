@@ -148,7 +148,7 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
     const handleReject = () => {
     if (transaction && rejectTransaction) { 
         rejectTransaction(transaction.id);
-        handleClose();
+        closeModalAnimated();
         Alert.alert("Ditolak", "Transaksi telah ditolak ❌");
     } else {
         Alert.alert("Error", "Fungsi tolak belum tersedia di Context");
@@ -391,7 +391,3 @@ const styles = StyleSheet.create({
 });
 
 export default TransactionDetailModal;
-
-function handleClose() {
-    throw new Error('Function not implemented.');
-}
