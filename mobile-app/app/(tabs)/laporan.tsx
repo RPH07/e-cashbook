@@ -21,7 +21,8 @@ export default function LaporanScreen() {
   const [filterMode, setFilterMode] = useState<'bulanan' | 'tahunan'>('bulanan');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Pas user pilih Tanggal di kalender
   const handleDateChange = (event: any, date?: Date) => {
@@ -146,7 +147,7 @@ export default function LaporanScreen() {
     : selectedDate.getFullYear().toString();
 
   const generatePDF = async () => {
-    setIsGenerating(true);
+    setExportingPDF(true);
     try {
       const startDate = new Date(selectedDate);
       const endDate = new Date(selectedDate);
@@ -300,18 +301,27 @@ export default function LaporanScreen() {
           </body>
         </html>
       `;
+      const fileName = filterMode === 'bulanan'
+        ? `Laporan_Keuangan_${selectedDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).replace(/ /g, '_').toLowerCase()}.pdf`
+        : `Laporan_Keuangan_${selectedDate.getFullYear()}.pdf`;
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      const newFile = new FileSystem.File(FileSystem.Paths.cache, fileName);
+      const originalFile = new FileSystem.File(uri);
+      await originalFile.copy(newFile);
       recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan PDF (Periode: ${periodLabel})`);
-      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+      await Sharing.shareAsync(newFile.uri, { 
+        UTI: '.pdf', 
+        mimeType: 'application/pdf'
+      });
     } catch (error) {
       Alert.alert("Gagal", "Tidak bisa membuat PDF: " + error);
     } finally {
-      setIsGenerating(false);
+      setExportingPDF(false);
     }
   };
 
   const exportToExcel = async () => {
-    setIsGenerating(true);
+    setExportingExcel(true);
     try {
       // Filter transaksi berdasarkan periode
       const startDate = new Date(selectedDate);
@@ -403,7 +413,7 @@ export default function LaporanScreen() {
     } catch (error) {
       Alert.alert('Gagal', 'Tidak bisa membuat file Excel: ' + error);
     } finally {
-      setIsGenerating(false);
+      setExportingExcel(false);
     }
   };
 
@@ -448,14 +458,14 @@ export default function LaporanScreen() {
         <TouchableOpacity
           style={styles.pdfButton}
           onPress={generatePDF}
-          disabled={isGenerating}
+          disabled={exportingPDF || exportingExcel}
         >
-          {isGenerating ? (
+          {exportingPDF ? (
             <ActivityIndicator color="white" />
           ) : (
             <>
-              <Ionicons name="print-outline" size={20} color="white" style={{ marginRight: 8 }} />
-              <Text style={styles.pdfText}>CETAK LAPORAN (PDF)</Text>
+              <Ionicons name="document-text-outline" size={20} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.pdfText}>Unduh PDF</Text>
             </>
           )}
         </TouchableOpacity>
@@ -463,14 +473,14 @@ export default function LaporanScreen() {
         <TouchableOpacity
           style={styles.excelButton}
           onPress={exportToExcel}
-          disabled={isGenerating}
+          disabled={exportingPDF || exportingExcel}
         >
-          {isGenerating ? (
+          {exportingExcel ? (
             <ActivityIndicator color="white" />
           ) : (
             <>
-              <Ionicons name="document-text-outline" size={20} color="white" style={{ marginRight: 8 }} />
-              <Text style={styles.pdfText}>EXPORT KE EXCEL</Text>
+              <Ionicons name="grid-outline" size={20} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.pdfText}>Unduh Excel</Text>
             </>
           )}
         </TouchableOpacity>
