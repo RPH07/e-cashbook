@@ -9,7 +9,6 @@ import * as SecureStore from 'expo-secure-store';
 import { LineChart } from "react-native-gifted-charts";
 import { useTransaction } from '@/context/TransactionContext';
 
-// TYPE BUAT CARD LOG
 type LogCategory = 'data' | 'system';
 
 // config animasi header
@@ -24,14 +23,13 @@ export default function Dashboard() {
     // State
     const [showLogModal, setShowLogModal] = useState(false);
     const [logCategory, setLogCategory] = useState<LogCategory>('data');
-    
     const accounts = ['Semua', 'Giro', 'Tabungan', 'Kas Kecil']; 
     const [selectedAccount, setSelectedAccount] = useState('Semua');
+    const [period, setPeriod] = useState<'month' | 'all'>('month'); 
 
-    // Anmasi scroll
+    // ANIMASI SCROLL
     const scrollY = useRef(new Animated.Value(0)).current;
 
-    // Logic interpolasi
     const headerTranslateY = scrollY.interpolate({
         inputRange: [0, SCROLL_DISTANCE],
         outputRange: [0, -SCROLL_DISTANCE],
@@ -63,11 +61,22 @@ export default function Dashboard() {
     // Filter dulu transaksinya
     const filteredTransactions = transactions.filter(t => {
         const isApproved = t.status === 'approved';
+        
+        // Filter Akun
         const isAccountMatch = selectedAccount === 'Semua' ? true : t.account === selectedAccount;
-        return isApproved && isAccountMatch;
+
+        //Filter Periode
+        let isDateMatch = true;
+        if (period === 'month') {
+            const txDate = new Date(t.date);
+            const now = new Date();
+            // Cek apakah Bulan & Tahun sama dengan hari ini
+            isDateMatch = txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+        }
+
+        return isApproved && isAccountMatch && isDateMatch;
     });
 
-    // Hitung dari hasil filter
     const totalIncome = filteredTransactions
         .filter(t => t.type === 'pemasukan')
         .reduce((sum, t) => sum + t.amount, 0);
@@ -119,14 +128,12 @@ export default function Dashboard() {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#1a5dab" />
             
-            {/* animated header */}
             <Animated.View style={[styles.header, { 
                 transform: [{ translateY: headerTranslateY }], 
                 height: HEADER_MAX_HEIGHT,
                 zIndex: 100, 
             }]}>
                 
-                {/* user info*/}
                 <Animated.View style={[
                     styles.userInfo, 
                     { 
@@ -146,10 +153,8 @@ export default function Dashboard() {
                     </TouchableOpacity>
                 </Animated.View>
 
-                {/* Saldo Card  */}
                 <Animated.View style={{ opacity: balanceOpacity }}>
                     
-                    {/* filter akun */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 15, marginTop: -10}}>
                         {accounts.map((acc, index) => (
                             <TouchableOpacity 
@@ -171,9 +176,23 @@ export default function Dashboard() {
                     </ScrollView>
 
                     <View style={styles.balanceCard}>
-                        <Text style={styles.balanceLabel}>
-                            Total Saldo ({selectedAccount})
-                        </Text>
+                        <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 5}}>
+                            <Text style={styles.balanceLabel}>
+                                Saldo ({selectedAccount})
+                            </Text>
+
+                            <TouchableOpacity 
+                                onPress={() => setPeriod(prev => prev === 'month' ? 'all' : 'month')}
+                                style={{flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.2)', paddingHorizontal:8, paddingVertical:4, borderRadius:12}}
+                            >
+                                <Ionicons name="calendar-outline" size={12} color="white" style={{marginRight:4}}/>
+                                <Text style={{color:'white', fontSize:10, fontWeight:'bold'}}>
+                                    {period === 'month' ? 'BULAN INI' : 'SEMUA'}
+                                </Text>
+                                <Ionicons name="chevron-down" size={10} color="white" style={{marginLeft:4}}/>
+                            </TouchableOpacity>
+                        </View>
+                        
                         <Text style={styles.balanceValue}>{formatMoney(balance)}</Text>
 
                         <View style={styles.rowSummary}>
@@ -196,7 +215,6 @@ export default function Dashboard() {
                 </Animated.View>
             </Animated.View>
 
-            {/* scroll content */}
             <Animated.ScrollView 
                 contentContainerStyle={{
                     paddingTop: HEADER_MAX_HEIGHT - 20, 
@@ -209,20 +227,18 @@ export default function Dashboard() {
                 )}
                 scrollEventThrottle={16} 
             >
-                
-                {/* grafik */}
                 <View style={styles.chartContainer}>
-                    <Text style={styles.sectionTitle}>Grafik Arus Kas ({selectedAccount})</Text>
+                    <Text style={styles.sectionTitle}>
+                        Arus Kas ({period === 'month' ? 'Bulan Ini' : 'Total'})
+                    </Text>
                     <LineChart
                         data={dataGrafik} color="#1a5dab" thickness={3}
                         dataPointsColor="#1a5dab" startFillColor="#1a5dab" endFillColor="#1a5dab"
                         startOpacity={0.2} endOpacity={0.0} areaChart curved hideRules
-                        yAxisThickness={0} xAxisThickness={0} height={150} width={screenWidth - 80} 
+                        yAxisThickness={0} xAxisThickness={0} height={150} width={screenWidth - 110} adjustToWidth={true}
                         initialSpacing={20} endSpacing={20} spacing={55}
                     />
                 </View>
-
-                {/* menu */}
                 {(userRole === 'admin' || userRole === 'finance') ? (
                     <>
                         <Text style={styles.sectionTitle}>Menu Pengawasan (Audit)</Text>
@@ -268,7 +284,6 @@ export default function Dashboard() {
                 <Ionicons name="add" size={30} color="white" />
             </TouchableOpacity>
 
-            {/* Modal Log */}
             <Modal visible={showLogModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowLogModal(false)}>
                 <View style={styles.modalContainer}>
                     <View style={styles.modalHeader}>
@@ -333,7 +348,6 @@ const styles = StyleSheet.create({
     summaryLabel: { color: '#e3f2fd', fontSize: 12 },
     summaryValue: { color: 'white', fontWeight: 'bold', fontSize: 14 },
     
-    // --- [BARU] STYLE PIL AKUN ---
     accountPill: {
         paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20, marginRight: 10,
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)'
@@ -342,7 +356,6 @@ const styles = StyleSheet.create({
     accountPillInactive: { backgroundColor: 'rgba(255,255,255,0.1)' },
     accountPillText: { fontSize: 12, fontWeight: 'bold' },
 
-    // CONTENT
     sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
     chartContainer: {
         backgroundColor: 'white', borderRadius: 15, padding: 20, marginBottom: 25,
@@ -370,7 +383,6 @@ const styles = StyleSheet.create({
     statusDesc: { fontSize: 12, color: '#666' },
     statusCount: { fontSize: 24, fontWeight: 'bold' },
 
-    // STYLE MODAL
     modalContainer: { flex: 1, backgroundColor: '#f0f2f5' },
     modalHeader: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
