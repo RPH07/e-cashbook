@@ -41,6 +41,18 @@ module.exports = {
       evidence_link: {
         type: Sequelize.STRING
       },
+      status: {
+        type: Sequelize.ENUM('pending', 'approved', 'rejected'),
+        allowNull: false,
+        defaultValue: 'pending'
+      },
+      approvedBy: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: { model: 'Users', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
+      },
       userId: {
         type: Sequelize.INTEGER,
         references: { model: 'Users', key: 'id' },

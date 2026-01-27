@@ -5,7 +5,8 @@ const {
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {
     static associate(models) {
-      // define association here
+      this.hasMany(models.Transaction, { foreignKey: 'userId', as: 'transactions' });
+      this.hasMany(models.AuditLogs, { foreignKey: 'userId', as: 'audit_logs' });
     }
   }
   User.init({
@@ -26,9 +27,9 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     role: {
-      type: DataTypes.ENUM('admin', 'bendahara', 'viewer', 'auditor'), 
+      type: DataTypes.ENUM('admin', 'finance', 'staff', 'auditor'), 
       allowNull: false, 
-      defaultValue: 'viewer'
+      defaultValue: 'staff'
     }
   }, {
     sequelize,

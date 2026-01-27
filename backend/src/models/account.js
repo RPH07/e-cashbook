@@ -5,7 +5,7 @@ const {
 module.exports = (sequelize, DataTypes) => {
   class Account extends Model {
     static associate(models) {
-      // define association here
+      this.hasMany(models.Transaction, { foreignKey: 'accountId', as: 'transactions' });
     }
   }
   Account.init({

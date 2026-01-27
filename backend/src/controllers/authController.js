@@ -14,7 +14,7 @@ exports.login = async (req, res) => {
 
         if (!user) {
             return res.status(404).json({
-                status: 'fail',
+                success: false,
                 message: 'User not found'
             });
         }
@@ -24,19 +24,19 @@ exports.login = async (req, res) => {
 
         if (!isPasswordValid) {
             return res.status(401).json({
-                status: 'fail',
+                success: false,
                 message: 'Invalid password'
             });
         }
 
         const token = jwt.sign(
-            { id: user.id, email: user.email },
+            { id: user.id, email: user.email, role: user.role},
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
 
         return res.status(200).json({
-            status: 'success',
+            status: true,
             message: 'Login Berhasil',
             data: {
                 token,
@@ -51,6 +51,7 @@ exports.login = async (req, res) => {
     }catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ 
+            success: false,
             message: 'Internal server error' 
         });
     }

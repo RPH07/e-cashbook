@@ -9,6 +9,7 @@ module.exports = (sequelize, DataTypes) => {
       this.belongsTo(models.Account, { foreignKey: 'accountId', as: 'account' });
       this.belongsTo(models.Category, { foreignKey: 'categoryId', as: 'category' });
       this.belongsTo(models.Account, { as: 'toAccount', foreignKey: 'toAccountId' });
+      this.belongsTo(models.User, { foreignKey: 'approvedBy', as: 'approver' });
     }
   }
   Transaction.init({
@@ -20,6 +21,12 @@ module.exports = (sequelize, DataTypes) => {
     type: { type: DataTypes.ENUM('income', 'expense', 'transfer'), allowNull: false },
     description: DataTypes.TEXT,
     evidence_link: DataTypes.STRING,
+    status: {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      allowNull: false,
+      defaultValue: 'pending'
+    },
+    approvedBy: { type: DataTypes.INTEGER, allowNull: true },
     userId: DataTypes.INTEGER,
     accountId: DataTypes.INTEGER,
     categoryId: DataTypes.INTEGER,

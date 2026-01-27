@@ -3,6 +3,7 @@ const express = require('express');
 const { sequelize } = require('./src/models'); // Memanggil "Manajer" database
 const authRoutes = require('./src/routes/authRoutes');
 const transactionRoutes = require('./src/routes/transactionRoute');
+const reportRoutes = require('./src/routes/reportRoute');
 const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -34,6 +35,9 @@ app.use('/api/auth', authRoutes);
 
 // Rute Transaksi
 app.use('/api/transactions', transactionRoutes);
+
+// Rute Report
+app.use('/api/reports', reportRoutes);
 
 // Tes rute utama
 app.get('/', (req, res) => {
