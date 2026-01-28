@@ -1,6 +1,6 @@
 'use strict';
 
-const {Transaction, Account, Category, sequelize} = require('../models');
+const {Transaction, Account, User, Category, sequelize} = require('../models');
 const {Op} = require('sequelize');
 const AuditLogService = require('./auditLogService');
 
@@ -219,7 +219,8 @@ class TransactionService {
                 where: whereCondition,
                 include: [
                     {model: Account, as: 'account', attributes: ['account_name', 'account_type']},
-                    {model: Category, as: 'category', attributes: ['name', 'type']}
+                    {model: Category, as: 'category', attributes: ['name', 'type']},
+                    {model: User, as: 'user', attributes: ['name', 'role']}
                 ],
                 order: [['date', 'DESC']]
 
