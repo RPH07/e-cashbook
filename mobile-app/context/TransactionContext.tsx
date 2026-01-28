@@ -50,7 +50,7 @@ interface TransactionContextType {
   logs: AuditLog[];
 
   addTransaction: (input: CreateTransactionInput) => Promise<void>;
-  updateTransaction: (id: string, updatedData: Partial<Transaction>) => void;
+  updateTransaction: (id: string, input: CreateTransactionInput) => Promise<void>;
   deleteTransaction: (id: string) => void;
   approveTransaction: (id: string) => void;
   rejectTransaction: (id: string) => void;
@@ -165,8 +165,46 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateTransaction = async (id: string, updatedData: Partial<Transaction>) => {
-    setTransactions(prev => prev.map(t => (t.id === id ? { ...t, ...updatedData } : t)));
+  const updateTransaction = async (id: string, input: CreateTransactionInput) => {
+    try {
+      const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
+
+      await transactionService.update(id, {
+        type: input.type,
+        amount: input.amount,
+        date: input.date,
+        note: input.note,
+        accountId: input.accountId,     
+        categoryId: input.categoryId,  
+        proofLink: input.proofLink,
+        status: statusAwal,
+        createdByRole: userRole,
+        createdByName: userName
+      });
+
+      setTransactions(prev => prev.map(t => {
+        if (t.id === id) {
+          return {
+            ...t, 
+            type: input.type,
+            amount: input.amount,
+            date: input.date,
+            note: input.note,
+            account: input.accountName,   
+            category: input.categoryName, 
+            proofLink: input.proofLink,
+            status: statusAwal
+          };
+        }
+        return t;
+      }));
+
+      recordLog('UPDATE', `Ref: ${id.substring(0,6)}`, `Update data Rp${input.amount}`);
+
+    } catch (error) {
+      console.error("Gagal update di context:", error);
+      throw error; // Lempar error biar bisa ditangkap UI
+    }
   };
 
   const deleteTransaction = async (id: string) => {
