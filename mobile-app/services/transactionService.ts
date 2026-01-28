@@ -18,7 +18,22 @@ export const transactionService = {
     getAll: async (): Promise<Transaction[]> => {
         try {
             const response = await api.get('/transactions');
-            return response.data.data || response.data; 
+            const rawData = response.data.data || response.data;
+
+            return rawData.map((item: any) => ({
+                ...item,
+
+                account: item.account?.account_name || item.Account?.account_name || 'Unknown',
+
+                category: item.category?.name || item.Category?.name || 'Unknown',
+
+                createdByName: item.user?.name || item.User?.name || 'Unknown',
+                createdByRole: item.user?.role || item.User?.role || 'staff',
+
+                amount: Number(item.amount),
+                type: item.type === 'expense' ? 'pengeluaran' : (item.type === 'income' ? 'pemasukan' : item.type)
+            }));
+
         } catch (error) {
             console.error("Gagal ambil transaksi:", error);
             throw error;
@@ -36,8 +51,8 @@ export const transactionService = {
                 date: data.date,
                 amount: Number(data.amount),
                 type: typeMap[data.type],
-                description: data.note,  
-                evidence_link: data.proofLink, 
+                description: data.note,
+                evidence_link: data.proofLink,
                 accountId: data.accountId,
                 categoryId: data.categoryId,
                 status: data.status,
@@ -48,7 +63,7 @@ export const transactionService = {
             // console.log("Mengirim ke Backend (Final):", payload); 
 
             const response = await api.post('/transactions', payload);
-            
+
             // Balikin data asli dari backend
             return response.data.data || response.data;
 
@@ -58,12 +73,34 @@ export const transactionService = {
         }
     },
 
-    update: async (id: string, data: Partial<CreateTransactionDTO>): Promise<any> => {
+    update: async (id: string, data: CreateTransactionDTO): Promise<any> => {
         try {
-            const response = await api.put(`/transactions/${id}`, data);
-            return response.data;
-        } catch (error) {
-            console.error("Gagal update transaksi:", error);
+            const typeMap = {
+                'pemasukan': 'income',
+                'pengeluaran': 'expense'
+            };
+
+            const payload = {
+                date: data.date,
+                amount: Number(data.amount),
+                type: typeMap[data.type],
+                description: data.note,
+                evidence_link: data.proofLink,
+
+                accountId: data.accountId,
+                categoryId: data.categoryId,
+
+                status: data.status,
+                createdByRole: data.createdByRole,
+                createdByName: data.createdByName
+            };
+
+            // Pake PUT buat update
+            const response = await api.put(`/transactions/${id}`, payload);
+            return response.data.data || response.data;
+
+        } catch (error: any) {
+            console.error("Gagal update transaksi:", error.response?.data || error.message);
             throw error;
         }
     },
