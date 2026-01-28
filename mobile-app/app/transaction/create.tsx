@@ -56,18 +56,18 @@ export default function CreateTransaction() {
 
     useEffect(() => {
         if (isEditMode && accounts.length > 0 && categories.length > 0) {
-            console.log('=== Edit Mode Debug ===');
-            console.log('Edit ID (from params):', editId, 'Type:', typeof editId);
-            console.log('Transactions in context:', transactions.length, 'items');
-            console.log('Transaction IDs:', transactions.map(t => ({ id: t.id, type: typeof t.id })));
+            // console.log('=== Edit Mode Debug ===');
+            // console.log('Edit ID (from params):', editId, 'Type:', typeof editId);
+            // console.log('Transactions in context:', transactions.length, 'items');
+            // console.log('Transaction IDs:', transactions.map(t => ({ id: t.id, type: typeof t.id })));
             
             const txToEdit = transactions.find(t => String(t.id) === String(editId));
 
             if (txToEdit) {
-                console.log('=== Loading Edit Data ===');
-                console.log('Transaction:', txToEdit);
-                console.log('Available accounts:', accounts);
-                console.log('Available categories:', categories);
+                // console.log('=== Loading Edit Data ===');
+                // console.log('Transaction:', txToEdit);
+                // console.log('Available accounts:', accounts);
+                // console.log('Available categories:', categories);
                 
                 setType(txToEdit.type);
                 setDate(new Date(txToEdit.date));
@@ -87,28 +87,28 @@ export default function CreateTransaction() {
                     a.name === txToEdit.account
                 );
                 if (foundAccount) {
-                    console.log('✅ Found account:', foundAccount);
+                    // console.log('Found account:', foundAccount);
                     setSelectedAccountId(foundAccount.id);
                 } else {
-                    console.log('❌ Account not found for:', txToEdit.account);
+                    console.log('Account not found for:', txToEdit.account);
                 }
 
                 // Category bisa punya field: name
                 const foundCategory = categories.find(c => c.name === txToEdit.category);
                 if (foundCategory) {
-                    console.log('✅ Found category:', foundCategory);
+                    // console.log('Found category:', foundCategory);
                     setSelectedCategoryId(foundCategory.id);
                 } else {
-                    console.log('❌ Category not found for:', txToEdit.category);
+                    console.log(' Category not found for:', txToEdit.category);
                 }
                 
-                console.log('=== Loaded Values ===');
-                console.log('Type:', txToEdit.type);
-                console.log('Amount:', txToEdit.amount.toString());
-                console.log('Note:', noteValue);
-                console.log('ProofLink:', proofValue);
+                // console.log('=== Loaded Values ===');
+                // console.log('Type:', txToEdit.type);
+                // console.log('Amount:', txToEdit.amount.toString());
+                // console.log('Note:', noteValue);
+                // console.log('ProofLink:', proofValue);
             } else {
-                console.log('❌ Transaction not found with ID:', editId);
+                console.log('Transaction not found with ID:', editId);
                 console.log('Available transactions:', transactions);
             }
         }
