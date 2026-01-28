@@ -1,59 +1,50 @@
-import api from "./api";
-import * as SecureStore from "expo-secure-store";
+import api from './api';
+import * as SecureStore from 'expo-secure-store';
 
 interface LoginResponse {
+    message: string;
     token: string;
     user: {
         id: number;
         name: string;
         email: string;
-        role: 'admin' | 'finance' | 'staff';
+        role: 'admin' | 'finance' | 'staff' | 'auditor' | 'viewer';
     };
 }
 
 export const authService = {
-    Login: async(email: string, password: string) => {
-        // ============================================================
-        // [MODE MOCK UP: ON] - PAKE INI SELAMA BACKEND BELUM READY
-        // ============================================================
-        console.log(`[MOCK] Login attempt: ${email}`);
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Delay biar kayak loading beneran
+    login: async (email: string, password: string): Promise<LoginResponse> => {
+        try {
+            const response = await api.post('/auth/login', { email, password });
 
-        // Logic Mocking Role
-        let role = 'staff';
-        if (email.toLowerCase().includes('admin')) role = 'admin';
-        else if (email.toLowerCase().includes('finance')) role = 'finance';
+            const responseData = response.data;
+            const payload = responseData.data || responseData;
 
-        const mockResponse = {
-            data: {
-                token: "dummy-token-backend-123",
-                user: {
-                    id: 1,
-                    name: email.split('@')[0],
-                    email: email,
-                    role: role as 'admin' | 'finance' | 'staff'
+            if (payload.token) {
+                await SecureStore.setItemAsync('userToken', payload.token);
+                if (payload.user?.role) {
+                    await SecureStore.setItemAsync('userRole', payload.user.role);
+                }
+                if (payload.user?.name) {
+                    await SecureStore.setItemAsync('userName', payload.user.name);
                 }
             }
-        };
 
-        const response = mockResponse; 
-        // ============================================================
-        // const response = await api.post<LoginResponse>('auth/login', {email, password});
-        // ============================================================
+            return payload;
 
-
-        // Simpan data penting (Logic ini SAMA, mau Mock atau Real)
-        if(response.data.token) {
-            await SecureStore.setItemAsync('userToken', response.data.token);
-            await SecureStore.setItemAsync('userRole', response.data.user.role);
-            await SecureStore.setItemAsync('userName', response.data.user.name);
+        } catch (error: any) {
+            console.error("Login Error:", error.response?.data || error.message);
+            throw error.response?.data?.message || "Gagal terhubung ke server";
         }
-        return response.data;
     },
 
-    Logout: async() => {
-        await SecureStore.deleteItemAsync('userToken');
-        await SecureStore.deleteItemAsync('userRole');
-        await SecureStore.deleteItemAsync('userName');
+    logout: async () => {
+        try {
+            await SecureStore.deleteItemAsync('userToken');
+            await SecureStore.deleteItemAsync('userRole');
+            await SecureStore.deleteItemAsync('userName');
+        } catch (error) {
+            console.error("Logout Error:", error);
+        }
     }
-}
+};
