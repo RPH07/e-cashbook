@@ -84,10 +84,6 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         const mappedData = apiData.map((t: any) => ({
           ...t,
           id: String(t.id),
-          // Ambil nama dari object relasi backend
-          account: t.account?.account_name || 'Tanpa Akun',
-          category: t.category?.name || 'Tanpa Kategori',
-          // Map backend fields ke frontend fields
           note: t.description || t.note || '',
           proofLink: t.evidence_link || t.proofLink || null
         }));
