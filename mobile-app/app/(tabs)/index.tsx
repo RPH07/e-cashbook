@@ -1,13 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity,
-    StatusBar, Dimensions, Modal, FlatList, Animated, ScrollView 
+    StatusBar, Dimensions, Modal, FlatList, Animated, ScrollView, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { LineChart } from "react-native-gifted-charts";
 import { useTransaction } from '@/context/TransactionContext';
+import { transactionService } from '@/services/transactionService'; 
 
 type LogCategory = 'data' | 'system';
 
@@ -23,7 +24,8 @@ export default function Dashboard() {
     // State
     const [showLogModal, setShowLogModal] = useState(false);
     const [logCategory, setLogCategory] = useState<LogCategory>('data');
-    const accounts = ['Semua', 'Giro', 'Tabungan', 'Kas Kecil']; 
+    
+    const [accounts, setAccounts] = useState<string[]>(['Semua']); 
     const [selectedAccount, setSelectedAccount] = useState('Semua');
     const [period, setPeriod] = useState<'month' | 'all'>('month'); 
 
@@ -48,6 +50,23 @@ export default function Dashboard() {
         extrapolate: 'clamp',
     });
 
+    useEffect(() => {
+        const loadAccounts = async () => {
+            try {
+                // Minta daftar akun ke Backend
+                const apiAccounts = await transactionService.getAccounts();
+                
+                if (apiAccounts && Array.isArray(apiAccounts)) {
+                    const accountNames = apiAccounts.map((acc: any) => acc.account_name || acc.name);
+                    setAccounts(['Semua', ...accountNames]);
+                }
+            } catch (error) {
+                console.error("Gagal load akun dashboard:", error);
+            }
+        };
+        loadAccounts();
+    }, []);
+
     const handleLogout = async () => {
         try {
             await SecureStore.deleteItemAsync('userToken');
@@ -58,11 +77,11 @@ export default function Dashboard() {
         } catch (error) { console.error("Gagal logout:", error); }
     };
 
-    // Filter dulu transaksinya
+    // Filter Transaksi
     const filteredTransactions = transactions.filter(t => {
         const isApproved = t.status === 'approved';
         
-        // Filter Akun
+        // Filter Akun (Cocokin nama)
         const isAccountMatch = selectedAccount === 'Semua' ? true : t.account === selectedAccount;
 
         //Filter Periode
@@ -70,7 +89,6 @@ export default function Dashboard() {
         if (period === 'month') {
             const txDate = new Date(t.date);
             const now = new Date();
-            // Cek apakah Bulan & Tahun sama dengan hari ini
             isDateMatch = txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
         }
 
@@ -155,6 +173,7 @@ export default function Dashboard() {
 
                 <Animated.View style={{ opacity: balanceOpacity }}>
                     
+                    {/* [4] Render List Akun Dinamis */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 15, marginTop: -10}}>
                         {accounts.map((acc, index) => (
                             <TouchableOpacity 
