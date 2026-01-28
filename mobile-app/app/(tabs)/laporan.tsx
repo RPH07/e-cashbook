@@ -15,7 +15,7 @@ import * as XLSX from 'xlsx';
 
 export default function LaporanScreen() {
   // Ambil data mentah dari Context
-  const { transactions, userRole, recordLog } = useTransaction();
+  const { transactions, userRole, userName, recordLog } = useTransaction();
 
   // State buat nyimpen filter waktu yang lagi aktif
   const [filterMode, setFilterMode] = useState<'bulanan' | 'tahunan'>('bulanan');
@@ -160,12 +160,16 @@ export default function LaporanScreen() {
           endDate.setMonth(11, 31); endDate.setHours(23,59,59,999);
       }
 
+      
       const statementTransactions = transactions
         .filter(t => {
             const tDate = new Date(t.date);
-            return t.status === 'approved' && tDate >= startDate && tDate <= endDate;
+            const isApproved = t.status === 'approved';
+            const inRange = tDate >= startDate && tDate <= endDate;
+            return isApproved && inRange;
         })
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
 
       // logic saldo berjalan
       let runningBalance = reportData.beginningBalance;
@@ -179,26 +183,37 @@ export default function LaporanScreen() {
 
           const dateObj = new Date(t.date);
           const dateStr = dateObj.toLocaleDateString('id-ID', {day: '2-digit', month: 'short', year: 'numeric'});
-          const timeStr = dateObj.toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}).replace('.', ':');
-
-          const accountBadgeColor = t.account === 'Giro' ? '#e3f2fd' : '#fff3e0'; 
-          const accountTextColor = t.account === 'Giro' ? '#1565c0' : '#e65100';
+          
+          const accountName = t.account || (t as any).accountName || 'Tanpa Akun';
+          const accountBadgeColor = accountName.toLowerCase().includes('giro') ? '#e3f2fd' : '#fff3e0'; 
+          const accountTextColor = accountName.toLowerCase().includes('giro') ? '#1565c0' : '#e65100';
 
           return `
             <tr>
               <td style="text-align: left;">
                 <div style="font-weight: bold;">${dateStr}</div>
-                <div style="font-size: 10px; color: #666;">${timeStr}</div>
               </td>
               <td style="text-align: left;">
                 <div style="font-weight: bold;">${t.category}</div>
                 <div style="font-size: 10px; color: #666;">${t.note || '-'}</div>
                 <div style="font-size: 9px; color: #888; margin-top: 2px;">Ref: ${t.id.substring(0,8).toUpperCase()}</div>
               </td>
-              <td style="text-align: center;">
-                <span style="background-color: ${accountBadgeColor}; color: ${accountTextColor}; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;">
-                  ${t.account.toUpperCase()}
-                </span>
+              <td style="text-align: center; vertical-align: middle;">
+                <div style="
+                  background-color: ${accountBadgeColor}; 
+                  color: ${accountTextColor}; 
+                  padding: 6px 10px; 
+                  border-radius: 6px; 
+                  font-size: 9px; 
+                  font-weight: bold; 
+                  line-height: 1.3;
+                  display: inline-block;
+                  max-width: 100%;
+                  word-wrap: break-word;
+                  text-align: center;
+                ">
+                  ${accountName.toUpperCase()}
+                </div>
               </td>
               <td style="text-align: right; color: #c62828;">${isDebit ? formatMoney(t.amount) : 'Rp0'}</td>
               <td style="text-align: right; color: #2e7d32;">${isCredit ? formatMoney(t.amount) : 'Rp0'}</td>
@@ -252,9 +267,9 @@ export default function LaporanScreen() {
             <div class="info-box">
               <div>
                 <div class="info-label">Nama Pemilik</div>
-                <div class="info-value">${userRole === 'admin' ? 'ADMINISTRATOR' : 'STAFF KEUANGAN'}</div>
-                <div class="info-label" style="margin-top: 10px;">ID User</div>
-                <div class="info-value">USER-${Math.floor(Math.random() * 10000)}</div>
+                <div class="info-value">${userName.toUpperCase()}</div>
+                <div class="info-label" style="margin-top: 10px;">Role / Jabatan</div>
+                <div class="info-value" style="text-transform: capitalize;">${userRole}</div>
               </div>
               <div style="text-align: right;">
                   <div class="info-label">Saldo Awal (Beginning Balance)</div>
@@ -265,9 +280,9 @@ export default function LaporanScreen() {
             <table>
               <thead>
                 <tr>
-                  <th width="15%">Tanggal</th>
-                  <th width="30%">Uraian Transaksi</th>
-                  <th width="10%" style="text-align: center;">Akun</th>
+                  <th width="12%">Tanggal</th>
+                  <th width="28%">Uraian Transaksi</th>
+                  <th width="15%" style="text-align: center;">Akun</th>
                   <th width="15%" style="text-align: right;">Debit</th> 
                   <th width="15%" style="text-align: right;">Kredit</th>
                   <th width="15%" style="text-align: right;">Saldo</th>
