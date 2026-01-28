@@ -1,258 +1,210 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { transactionService } from '@/services/transactionService';
 
+export type UserRole = 'admin' | 'finance' | 'staff' | 'auditor' | 'viewer';
+
 export interface Transaction {
-    id: string;
-    type: 'pemasukan' | 'pengeluaran';
-    amount: number;
-    category: string;
-    date: string;
-    note?: string;
-    account: string;
-    imageUri?: string | null;
-    status: 'pending' | 'approved' | 'rejected';
-    createdByRole: string;
-    createdByName: string;
-    proofLink?: string | null;
+  id: string;
+  type: 'pemasukan' | 'pengeluaran';
+  amount: number;
+  category: string; 
+  date: string;
+  note?: string;
+  account: string;  
+  proofLink?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  createdByRole: UserRole;
+  createdByName: string;
 }
 
-export interface AuditLog {
-    id: string;
-    timestamp: string;
-    actorName: string;
-    actorRole: string;
-    actionType: 'CREATE' | 'UPDATE' | 'DELETE' | 'APPROVE' | 'REJECT' | 'LOGIN' | 'EXPORT' | 'SYSTEM';
-    target: string;
-    details: string;
+export interface CreateTransactionInput {
+  type: 'pemasukan' | 'pengeluaran';
+  amount: number;
+  date: string;
+  note: string;
+  proofLink?: string | null;
+
+  accountId: number;  
+  accountName: string;  
+
+  categoryId: number; 
+  categoryName: string;
 }
 
-export type UserRole = 'admin' | 'finance' | 'staff';
+interface AuditLog {
+  id: string;
+  actionType: string;
+  actorName: string;
+  actorRole: string;
+  target: string;
+  details: string;
+  timestamp: string;
+}
 
 interface TransactionContextType {
-    transactions: Transaction[];
-    logs:AuditLog[];
-    userRole: UserRole;
-    userName: string;
-    setUserRole: (role: UserRole) => Promise<void>;
-    setUserName: (name: string) => Promise<void>;
-    addTransaction: (tx: Transaction) => Promise<void>;
-    deleteTransaction: (id: string) => Promise<void>;
-    updateTransaction: (tx: Transaction) => Promise<void>;
-    approveTransaction: (id: string) => Promise<void>;
-    rejectTransaction: (id: string) => Promise<void>;
-    recordLog: (action: AuditLog['actionType'], target: string, details: string) => void;
+  transactions: Transaction[];
+  userRole: UserRole;
+  userName: string;
+  logs: AuditLog[];
+
+  addTransaction: (input: CreateTransactionInput) => Promise<void>;
+  updateTransaction: (id: string, updatedData: Partial<Transaction>) => void;
+  deleteTransaction: (id: string) => void;
+  approveTransaction: (id: string) => void;
+  rejectTransaction: (id: string) => void;
+
+  setUserRole: (role: UserRole) => void;
+  setUserName: (name: string) => void;
+  recordLog: (action: string, target: string, details: string) => void;
 }
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
 
 export const TransactionProvider = ({ children }: { children: ReactNode }) => {
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [userRole, setUserRole] = useState<UserRole>('staff'); 
-    const [userName, setUserName] = useState<string>('User');
-    const [logs, setLogs] = useState<AuditLog[]>([]);
-    const saveLogsToStorage = async (newLogs: AuditLog[]) => {
-        try {
-            await AsyncStorage.setItem('appLogs', JSON.stringify(newLogs));
-        } catch (error) {
-            console.log("Gagal Menyimpan: ", error);
-        }
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+
+  const [userRole, setUserRoleState] = useState<UserRole>('staff');
+  const [userName, setUserNameState] = useState<string>('User');
+
+  // LOAD DATA
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const storedRole = await SecureStore.getItemAsync('userRole');
+        const storedName = await SecureStore.getItemAsync('userName');
+
+        if (storedRole) setUserRoleState(storedRole as UserRole);
+        if (storedName) setUserNameState(storedName);
+
+        // Load Transaksi dari Backend
+        const apiData = await transactionService.getAll();
+        const mappedData = apiData.map((t: any) => ({
+          ...t,
+          id: String(t.id),
+          // Ambil nama dari object relasi backend
+          account: t.account?.account_name || 'Tanpa Akun',
+          category: t.category?.name || 'Tanpa Kategori'
+        }));
+        setTransactions(apiData as any);
+
+      } catch (error) {
+        console.error("Gagal load data context:", error);
+      }
     };
+    loadInitialData();
+  }, []);
 
-    const recordLog = (actionType: AuditLog['actionType'], target: string, details: string) => {
-        const newLog: AuditLog = {
-            id: Date.now().toString() + Math.floor(Math.random() * 1000 ),
-            timestamp: new Date().toISOString(),
-            actorName: userName,
-            actorRole: userRole,
-            actionType,
-            target,
-            details
+  const setUserRole = async (role: UserRole) => {
+    setUserRoleState(role);
+    await SecureStore.setItemAsync('userRole', role);
+  };
 
-        };
-        setLogs(prev => {
-            const updated = [newLog, ...prev];
-            saveLogsToStorage(updated);
-            return updated
-        })
+  const setUserName = async (name: string) => {
+    setUserNameState(name);
+    await SecureStore.setItemAsync('userName', name);
+  };
+
+  const recordLog = (action: string, target: string, details: string) => {
+    const newLog: AuditLog = {
+      id: Date.now().toString(),
+      actionType: action,
+      actorName: userName,
+      actorRole: userRole,
+      target,
+      details,
+      timestamp: new Date().toISOString()
+    };
+    setLogs(prev => [newLog, ...prev]);
+  };
+
+  const addTransaction = async (input: CreateTransactionInput) => {
+    try {
+      const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
+
+      const response = await transactionService.create({
+        type: input.type,
+        amount: input.amount,
+        date: input.date,
+        note: input.note,
+
+        accountId: input.accountId,
+        categoryId: input.categoryId, 
+
+        proofLink: input.proofLink,
+        status: statusAwal,
+        createdByRole: userRole,
+        createdByName: userName
+      });
+
+      const newTxForUI: Transaction = {
+        id: String(response.id), 
+
+        type: input.type,
+        amount: input.amount,
+        date: input.date,
+        note: input.note,
+
+        account: input.accountName,   
+        category: input.categoryName, 
+
+        proofLink: input.proofLink,
+        status: statusAwal,
+        createdByRole: userRole,
+        createdByName: userName
+      };
+
+      setTransactions((prev) => [newTxForUI, ...prev]);
+      recordLog('CREATE', `Ref: ${newTxForUI.id.substring(0, 6)}`, `Input Rp${input.amount}`);
+
+    } catch (error) {
+      console.error("Error di Context:", error);
+      throw error; 
     }
+  };
 
-    useEffect(() => {
-        const loadInitialData = async () => {
-            const storedRole = await SecureStore.getItemAsync('userRole');
-            const storedName = await SecureStore.getItemAsync('userName');
-            const storedLogs = await AsyncStorage.getItem('appLogs');
+  const updateTransaction = async (id: string, updatedData: Partial<Transaction>) => {
+    setTransactions(prev => prev.map(t => (t.id === id ? { ...t, ...updatedData } : t)));
+  };
 
-            if (storedRole) setUserRole(storedRole as UserRole);
-            if(storedName) setUserName(storedName);
-            if(storedLogs) setLogs(JSON.parse(storedLogs));
+  const deleteTransaction = async (id: string) => {
+    try {
+      await transactionService.delete(id);
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      recordLog('DELETE', `Ref: ${id.substring(0, 6)}`, 'Hapus data');
+    } catch (e) { Alert.alert("Gagal hapus"); }
+  };
 
-            try {
-                const apiData = await transactionService.getAll();
-                if(Array.isArray(apiData) && apiData.length > 0) {
-                    setTransactions(apiData);
-                } else {
-                    setTransactions([
-                        {
-                            id: '1', type: 'pemasukan', amount: 5000000, category: 'Proyek Website',
-                            date: new Date().toISOString(), account: 'Giro', note: 'DP Project',
-                            status: 'approved', createdByRole: 'admin', createdByName: 'Budi'
-                        }
-                    ]);
-                }
-            } catch (error) {
-                console.log("Gagal load data: ", error)
-            }
-        };
-        loadInitialData();
-    }, []);
+  const approveTransaction = async (id: string) => {
+    try {
+      await transactionService.approve(id);
+      setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'approved' } : t)));
+    } catch (e) { Alert.alert("Gagal approve"); }
+  };
 
-    const changeUserRole = async (role: UserRole) => {
-        setUserRole(role);
-        await SecureStore.setItemAsync('userRole', role);
-    };
+  const rejectTransaction = async (id: string) => {
+    try {
+      await transactionService.reject(id);
+      setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'rejected' } : t)));
+    } catch (e) { Alert.alert("Gagal reject"); }
+  };
 
-    const changeUserName = async (name: string) => {
-        setUserName(name);
-        await SecureStore.setItemAsync('userName', name)
-    }
-
-const addTransaction = async (tx: Transaction) => {
-        try {
-            const finalStatus: 'pending' | 'approved' | 'rejected' = userRole === 'staff' ? 'pending' : 'approved';
-
-            const txPayload = {
-                type: tx.type,
-                amount: tx.amount,
-                category: tx.category,
-                date: tx.date,
-                note: tx.note,
-                account: tx.account,
-                proofLink: tx.proofLink,
-                status: finalStatus,
-                createdByRole: userRole,
-                createdByName: userName
-            };
-
-            const newTx = await transactionService.create(txPayload);
-            
-            const finalTxForUI: Transaction = {
-                ...newTx,
-                status: finalStatus, 
-                createdByRole: userRole,
-                createdByName: userName
-            };
-            
-            setTransactions((prev) => [finalTxForUI, ...prev]);
-
-            // Log
-            recordLog('CREATE', `Ref: ${finalTxForUI.id.substring(0,6)}`, `Input Transaksi Baru senilai Rp${tx.amount}`);
-
-        } catch (error) { console.error(error); throw error; }
-    };
-
-    const deleteTransaction = async (id: string) => {
-        
-        try {
-            const txToDelete = transactions.find(t => t.id === id);
-            await transactionService.delete(id);
-            setTransactions((prev) => prev.filter((item) => item.id !== id));
-            if (txToDelete) {
-                recordLog(
-                    'DELETE', 
-                    `Ref: ${id.substring(0,6).toUpperCase()}`, 
-                    `Menghapus transaksi ${txToDelete.category} senilai Rp${txToDelete.amount}`
-                );
-            }
-        } catch (error) {
-            console.error(error);
-            throw error;
-        }
-    };
-
-    const updateTransaction = async (updatedTx: Transaction) => {
-        try {
-            const forcedStatus: 'pending' | 'approved' | 'rejected' = 
-                (userRole === 'admin' || userRole === 'finance') ? 'approved' : 'pending';
-            const finalTx = {
-                ...updatedTx,
-                status: forcedStatus 
-            };
-            const oldTx = transactions.find(t => t.id === finalTx.id);
-            const changes: string[] = [];
-
-            if (oldTx) {
-                if (oldTx.amount !== finalTx.amount) 
-                    changes.push(`Nominal: ${oldTx.amount} -> ${finalTx.amount}`);
-                if (oldTx.category !== finalTx.category) 
-                    changes.push(`Kategori: ${oldTx.category} -> ${finalTx.category}`);
-                if (oldTx.status !== finalTx.status) 
-                    changes.push(`Status: ${oldTx.status} -> ${finalTx.status}`);
-            }
-            const changeSummary = changes.length > 0 ? changes.join(', ') : 'Update data';
-            await transactionService.update(finalTx.id, {
-                type: finalTx.type,
-                amount: finalTx.amount,
-                category: finalTx.category,
-                date: finalTx.date,
-                note: finalTx.note,
-                account: finalTx.account,
-                proofLink: finalTx.proofLink,
-                status: finalTx.status,
-                // createdByName: userName (Opsional, kalau mau update nama pengedit)
-            });
-            setTransactions((prev) =>
-                prev.map((item) => (item.id === finalTx.id ? finalTx : item))
-            );
-            recordLog('UPDATE', `Ref: ${finalTx.id.substring(0,6)}`, changeSummary);
-
-        } catch (error) {
-            console.error("Gagal update transaksi:", error);
-            throw error;
-        }
-    };
-
-    const approveTransaction = async (id: string) => {
-        try {
-            await transactionService.approve(id);
-            setTransactions((prev) =>
-                prev.map((item) => (item.id === id ? { ...item, status: 'approved' } : item))
-            );
-            recordLog('APPROVE', `Ref: ${id.substring(0,6)}`, 'Menyetujui (ACC) transaksi');
-        } catch (error) {
-            console.error(error);
-            throw error;
-        }
-    };
-
-    const rejectTransaction = async (id: string) => {
-        setTransactions((prev) => prev.map((item) => (item.id === id ? { ...item, status: 'rejected' } : item)));
-        recordLog('REJECT', `Ref: ${id.substring(0,6)}`, 'Menolak (Reject) pengajuan transaksi');
-    }
-
-    return (
-        <TransactionContext.Provider value={{
-            transactions,
-            logs,
-            userRole,
-            userName,
-            setUserRole: changeUserRole,
-            setUserName: changeUserName,
-            addTransaction,
-            deleteTransaction,
-            updateTransaction,
-            approveTransaction,
-            rejectTransaction,
-            recordLog
-        }}>
-            {children}
-        </TransactionContext.Provider>
-    );
+  return (
+    <TransactionContext.Provider value={{
+      transactions, userRole, userName, logs,
+      addTransaction, updateTransaction, deleteTransaction,
+      approveTransaction, rejectTransaction,
+      setUserRole, setUserName, recordLog
+    }}>
+      {children}
+    </TransactionContext.Provider>
+  );
 };
 
 export const useTransaction = () => {
-    const context = useContext(TransactionContext);
-    if (!context) throw new Error("useTransaction must be used within a TransactionProvider");
-    return context;
+  const context = useContext(TransactionContext);
+  if (!context) throw new Error("useTransaction error");
+  return context;
 };
