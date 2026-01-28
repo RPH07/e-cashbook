@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity,
     StatusBar, Dimensions, Modal, FlatList, Animated, ScrollView, ActivityIndicator
@@ -8,13 +8,13 @@ import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { LineChart } from "react-native-gifted-charts";
 import { useTransaction } from '@/context/TransactionContext';
-import { transactionService } from '@/services/transactionService'; 
+import { transactionService } from '@/services/transactionService';
 
 type LogCategory = 'data' | 'system';
 
 // config animasi header
 const HEADER_MAX_HEIGHT = 320;
-const HEADER_MIN_HEIGHT = 100; 
+const HEADER_MIN_HEIGHT = 100;
 const SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 export default function Dashboard() {
@@ -24,10 +24,10 @@ export default function Dashboard() {
     // State
     const [showLogModal, setShowLogModal] = useState(false);
     const [logCategory, setLogCategory] = useState<LogCategory>('data');
-    
-    const [accounts, setAccounts] = useState<string[]>(['Semua']); 
+
+    const [accounts, setAccounts] = useState<string[]>(['Semua']);
     const [selectedAccount, setSelectedAccount] = useState('Semua');
-    const [period, setPeriod] = useState<'month' | 'all'>('month'); 
+    const [period, setPeriod] = useState<'month' | 'all'>('month');
 
     // ANIMASI SCROLL
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -39,14 +39,14 @@ export default function Dashboard() {
     });
 
     const balanceOpacity = scrollY.interpolate({
-        inputRange: [0, SCROLL_DISTANCE / 2], 
+        inputRange: [0, SCROLL_DISTANCE / 2],
         outputRange: [1, 0],
         extrapolate: 'clamp',
     });
 
     const userInfoTranslateY = scrollY.interpolate({
         inputRange: [0, SCROLL_DISTANCE],
-        outputRange: [0, SCROLL_DISTANCE - 10], 
+        outputRange: [0, SCROLL_DISTANCE - 10],
         extrapolate: 'clamp',
     });
 
@@ -55,7 +55,7 @@ export default function Dashboard() {
             try {
                 // Minta daftar akun ke Backend
                 const apiAccounts = await transactionService.getAccounts();
-                
+
                 if (apiAccounts && Array.isArray(apiAccounts)) {
                     const accountNames = apiAccounts.map((acc: any) => acc.account_name || acc.name);
                     setAccounts(['Semua', ...accountNames]);
@@ -80,7 +80,7 @@ export default function Dashboard() {
     // Filter Transaksi
     const filteredTransactions = transactions.filter(t => {
         const isApproved = t.status === 'approved';
-        
+
         // Filter Akun (Cocokin nama)
         const isAccountMatch = selectedAccount === 'Semua' ? true : t.account === selectedAccount;
 
@@ -118,6 +118,81 @@ export default function Dashboard() {
         }
     });
 
+    const formatCompactNumber = (number: number) => {
+        const num = Math.abs(number);
+        if (num >= 1000000000) {
+            return (number / 1000000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        }
+        if (num >= 1000000) {
+            return (number / 1000000).toFixed(1).replace(/\.0$/, '') + 'jt';
+        }
+        if (num >= 1000) {
+            return (number / 1000).toFixed(0) + 'rb';
+        }
+        return number.toString();
+    };
+
+    const chartData = useMemo(() => {
+        if (filteredTransactions.length === 0) {
+            return [
+                { value: 0, label: '', hideDataPoint: true },
+                { value: 0, label: 'No Data', hideDataPoint: true }
+            ];
+        }
+
+        const groupedData: Record<string, number> = {};
+        const sortedTx = [...filteredTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        sortedTx.forEach(t => {
+            const dateObj = new Date(t.date);
+            const label = dateObj.getDate().toString();
+
+            if (!groupedData[label]) groupedData[label] = 0;
+
+            if (t.type === 'pemasukan') {
+                groupedData[label] += t.amount;
+            } else {
+                groupedData[label] -= t.amount;
+            }
+        });
+
+        let result = Object.keys(groupedData).map(label => ({
+            value: groupedData[label],
+            label: label,
+            dataPointColor: groupedData[label] >= 0 ? '#1a5dab' : '#c62828',
+
+            dataPointLabelComponent: () => (
+                <Text style={{
+                    color: groupedData[label] >= 0 ? '#1a5dab' : '#c62828',
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    marginBottom: 5,
+                    textAlign: 'center',
+                    minWidth: 40
+                }}>
+                    {formatCompactNumber(groupedData[label])}
+                </Text>
+            ),
+            dataPointLabelShiftY: -20,
+            dataPointLabelShiftX: -15,
+        }));
+
+        // Tambah titik bayangan kalau data cuma 1
+        if (result.length === 1) {
+            result.unshift({
+                value: 0,
+                label: '',
+                dataPointColor: 'transparent',
+                dataPointLabelComponent: () => <View />,
+                dataPointLabelShiftY: 0,
+                dataPointLabelShiftX: 0,
+            } as any);
+        }
+
+        return result;
+
+    }, [filteredTransactions]);
+
     const formatMoney = (val: number) => {
         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
     };
@@ -136,28 +211,28 @@ export default function Dashboard() {
         </TouchableOpacity>
     );
 
-    const dataGrafik = [
-        { value: 15, label: 'Sen' }, { value: 30, label: 'Sel' },
-        { value: 26, label: 'Rab' }, { value: 40, label: 'Kam' },
-        { value: 25, label: 'Jum' }, { value: 10, label: 'Sab' },
-    ];
+    // const dataGrafik = [
+    //     { value: 15, label: 'Sen' }, { value: 30, label: 'Sel' },
+    //     { value: 26, label: 'Rab' }, { value: 40, label: 'Kam' },
+    //     { value: 25, label: 'Jum' }, { value: 10, label: 'Sab' },
+    // ];
 
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#1a5dab" />
-            
-            <Animated.View style={[styles.header, { 
-                transform: [{ translateY: headerTranslateY }], 
+
+            <Animated.View style={[styles.header, {
+                transform: [{ translateY: headerTranslateY }],
                 height: HEADER_MAX_HEIGHT,
-                zIndex: 100, 
+                zIndex: 100,
             }]}>
-                
+
                 <Animated.View style={[
-                    styles.userInfo, 
-                    { 
+                    styles.userInfo,
+                    {
                         transform: [{ translateY: userInfoTranslateY }],
-                        zIndex: 101, 
-                        backgroundColor: 'transparent' 
+                        zIndex: 101,
+                        backgroundColor: 'transparent'
                     }
                 ]}>
                     <View>
@@ -172,21 +247,20 @@ export default function Dashboard() {
                 </Animated.View>
 
                 <Animated.View style={{ opacity: balanceOpacity }}>
-                    
-                    {/* [4] Render List Akun Dinamis */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 15, marginTop: -10}}>
+
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 15, marginTop: -10 }}>
                         {accounts.map((acc, index) => (
-                            <TouchableOpacity 
-                                key={index} 
+                            <TouchableOpacity
+                                key={index}
                                 onPress={() => setSelectedAccount(acc)}
                                 style={[
-                                    styles.accountPill, 
+                                    styles.accountPill,
                                     selectedAccount === acc ? styles.accountPillActive : styles.accountPillInactive
                                 ]}
                             >
                                 <Text style={[
                                     styles.accountPillText,
-                                    selectedAccount === acc ? {color: '#1a5dab'} : {color: '#e3f2fd'}
+                                    selectedAccount === acc ? { color: '#1a5dab' } : { color: '#e3f2fd' }
                                 ]}>
                                     {acc}
                                 </Text>
@@ -195,23 +269,23 @@ export default function Dashboard() {
                     </ScrollView>
 
                     <View style={styles.balanceCard}>
-                        <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 5}}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                             <Text style={styles.balanceLabel}>
                                 Saldo ({selectedAccount})
                             </Text>
 
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 onPress={() => setPeriod(prev => prev === 'month' ? 'all' : 'month')}
-                                style={{flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.2)', paddingHorizontal:8, paddingVertical:4, borderRadius:12}}
+                                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}
                             >
-                                <Ionicons name="calendar-outline" size={12} color="white" style={{marginRight:4}}/>
-                                <Text style={{color:'white', fontSize:10, fontWeight:'bold'}}>
+                                <Ionicons name="calendar-outline" size={12} color="white" style={{ marginRight: 4 }} />
+                                <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
                                     {period === 'month' ? 'BULAN INI' : 'SEMUA'}
                                 </Text>
-                                <Ionicons name="chevron-down" size={10} color="white" style={{marginLeft:4}}/>
+                                <Ionicons name="chevron-down" size={10} color="white" style={{ marginLeft: 4 }} />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <Text style={styles.balanceValue}>{formatMoney(balance)}</Text>
 
                         <View style={styles.rowSummary}>
@@ -234,9 +308,9 @@ export default function Dashboard() {
                 </Animated.View>
             </Animated.View>
 
-            <Animated.ScrollView 
+            <Animated.ScrollView
                 contentContainerStyle={{
-                    paddingTop: HEADER_MAX_HEIGHT - 20, 
+                    paddingTop: HEADER_MAX_HEIGHT - 20,
                     paddingHorizontal: 20,
                     paddingBottom: 100
                 }}
@@ -244,18 +318,33 @@ export default function Dashboard() {
                     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
                     { useNativeDriver: true }
                 )}
-                scrollEventThrottle={16} 
+                scrollEventThrottle={16}
             >
                 <View style={styles.chartContainer}>
                     <Text style={styles.sectionTitle}>
                         Arus Kas ({period === 'month' ? 'Bulan Ini' : 'Total'})
                     </Text>
                     <LineChart
-                        data={dataGrafik} color="#1a5dab" thickness={3}
-                        dataPointsColor="#1a5dab" startFillColor="#1a5dab" endFillColor="#1a5dab"
-                        startOpacity={0.2} endOpacity={0.0} areaChart curved hideRules
-                        yAxisThickness={0} xAxisThickness={0} height={150} width={screenWidth - 110} adjustToWidth={true}
-                        initialSpacing={20} endSpacing={20} spacing={55}
+                        data={chartData}
+                        color="#1a5dab" thickness={3}
+                        dataPointsColor="#1a5dab"
+                        startFillColor="#1a5dab"
+                        endFillColor="#1a5dab"
+                        startOpacity={0.2}
+                        endOpacity={0.0}
+                        areaChart
+                        curved
+                        hideRules
+                        yAxisTextStyle={{ fontSize: 10, color: '#666' }}
+                        formatYLabel={(value) => formatCompactNumber(parseFloat(value))}
+                        xAxisThickness={0}
+                        height={150}
+                        width={screenWidth - 110}
+                        adjustToWidth={true}
+                        initialSpacing={20}
+                        endSpacing={20}
+                        spacing={55}
+                        scrollToEnd
                     />
                 </View>
                 {(userRole === 'admin' || userRole === 'finance') ? (
@@ -271,25 +360,25 @@ export default function Dashboard() {
                 ) : (
                     <>
                         <Text style={styles.sectionTitle}>Status Pengajuan Anda</Text>
-                        <TouchableOpacity style={[styles.statusCard, {backgroundColor: '#fff9c4', borderColor:'#fff176'}]}>
+                        <TouchableOpacity style={[styles.statusCard, { backgroundColor: '#fff9c4', borderColor: '#fff176' }]}>
                             <View style={styles.statusIconBox}><Ionicons name="time-outline" size={32} color="#f57f17" /></View>
-                            <View style={{flex: 1}}>
+                            <View style={{ flex: 1 }}>
                                 <Text style={styles.statusTitle}>Menunggu Persetujuan</Text>
                                 <Text style={styles.statusDesc}>Transaksi yang belum di-ACC Admin</Text>
                             </View>
-                            <Text style={[styles.statusCount, {color: '#f57f17'}]}>{myPendingCount}</Text>
+                            <Text style={[styles.statusCount, { color: '#f57f17' }]}>{myPendingCount}</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={[styles.statusCard, {backgroundColor: '#ffebee', borderColor:'#ffcdd2', marginTop: 15}]}>
+                        <TouchableOpacity style={[styles.statusCard, { backgroundColor: '#ffebee', borderColor: '#ffcdd2', marginTop: 15 }]}>
                             <View style={styles.statusIconBox}><Ionicons name="alert-circle-outline" size={32} color="#c62828" /></View>
-                            <View style={{flex: 1}}>
+                            <View style={{ flex: 1 }}>
                                 <Text style={styles.statusTitle}>Ditolak / Revisi</Text>
                                 <Text style={styles.statusDesc}>Transaksi yang perlu diperbaiki</Text>
                             </View>
-                            <Text style={[styles.statusCount, {color: '#c62828'}]}>{myRejectedCount}</Text>
+                            <Text style={[styles.statusCount, { color: '#c62828' }]}>{myRejectedCount}</Text>
                         </TouchableOpacity>
 
-                        <Text style={[styles.sectionTitle, {marginTop: 25}]}>Pintasan</Text>
+                        <Text style={[styles.sectionTitle, { marginTop: 25 }]}>Pintasan</Text>
                         <View style={styles.grid}>
                             {renderMenuItem('Input Pemasukan', 'arrow-down-circle', '#2e7d32', '#e8f5e9', () => router.push('/(tabs)/uang_masuk'))}
                             {renderMenuItem('Input Pengeluaran', 'arrow-up-circle', '#c62828', '#ffebee', () => router.push('/(tabs)/uang_keluar'))}
@@ -312,22 +401,22 @@ export default function Dashboard() {
                     <FlatList
                         data={filteredLogs}
                         keyExtractor={(item) => item.id}
-                        contentContainerStyle={{padding: 20}}
-                        ListEmptyComponent={<Text style={{textAlign:'center', marginTop:50, color:'#aaa'}}>Belum ada aktivitas tercatat.</Text>}
-                        renderItem={({item}) => (
+                        contentContainerStyle={{ padding: 20 }}
+                        ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 50, color: '#aaa' }}>Belum ada aktivitas tercatat.</Text>}
+                        renderItem={({ item }) => (
                             <View style={styles.logCard}>
                                 <View style={styles.logHeader}>
-                                    <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
-                                        <Ionicons name="person-circle-outline" size={16} color="#555"/>
-                                        <Text style={styles.logActor}>{item.actorName} <Text style={{fontWeight:'normal', fontSize:10}}>({item.actorRole})</Text></Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                        <Ionicons name="person-circle-outline" size={16} color="#555" />
+                                        <Text style={styles.logActor}>{item.actorName} <Text style={{ fontWeight: 'normal', fontSize: 10 }}>({item.actorRole})</Text></Text>
                                     </View>
                                     <Text style={styles.logTime}>
-                                        {new Date(item.timestamp).toLocaleDateString('id-ID', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}
+                                        {new Date(item.timestamp).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                     </Text>
                                 </View>
-                                <View style={{flexDirection:'row', alignItems:'center', marginTop:5}}>
-                                    <View style={[styles.badge, {backgroundColor: item.actionType === 'DELETE' || item.actionType === 'REJECT' ? '#ffebee' : '#e3f2fd'}]}>
-                                        <Text style={{fontSize:10, fontWeight:'bold', color: item.actionType === 'DELETE' ? '#c62828' : '#1565c0'}}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+                                    <View style={[styles.badge, { backgroundColor: item.actionType === 'DELETE' || item.actionType === 'REJECT' ? '#ffebee' : '#e3f2fd' }]}>
+                                        <Text style={{ fontSize: 10, fontWeight: 'bold', color: item.actionType === 'DELETE' ? '#c62828' : '#1565c0' }}>
                                             {item.actionType}
                                         </Text>
                                     </View>
@@ -347,7 +436,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f8f9fa' },
     header: {
         position: 'absolute', top: 0, left: 0, right: 0,
-        backgroundColor: '#1a5dab', 
+        backgroundColor: '#1a5dab',
         paddingHorizontal: 20, paddingTop: 50,
         borderBottomLeftRadius: 30, borderBottomRightRadius: 30,
         zIndex: 10, elevation: 5
@@ -366,7 +455,7 @@ const styles = StyleSheet.create({
     summaryIconLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     summaryLabel: { color: '#e3f2fd', fontSize: 12 },
     summaryValue: { color: 'white', fontWeight: 'bold', fontSize: 14 },
-    
+
     accountPill: {
         paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20, marginRight: 10,
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)'
