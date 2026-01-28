@@ -4,6 +4,7 @@ const { sequelize } = require('./src/models'); // Memanggil "Manajer" database
 const authRoutes = require('./src/routes/authRoutes');
 const transactionRoutes = require('./src/routes/transactionRoute');
 const reportRoutes = require('./src/routes/reportRoute');
+const masterRoutes = require('./src/routes/masterRoute');
 const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -12,13 +13,21 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 
 // Middleware agar backend bisa baca input JSON
-app.use(express.json());
+app.use(express.json({
+  strict: false,
+  type: function(req) {
+    // Selalu parse body, gak peduli Content-Type nya apa
+    return true;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Middleware untuk logging body request (untuk debugging)
 app.use((req, res, next) => {
   console.log('--- BODY AFTER JSON PARSER ---');
   console.log(req.body);
+  console.log(`📡 [${req.method}] ${req.url}`);
+  console.log('Headers:', req.headers['content-type']);
   next();
 });
 
@@ -38,6 +47,7 @@ app.use('/api/transactions', transactionRoutes);
 
 // Rute Report
 app.use('/api/reports', reportRoutes);
+app.use('/api/master', masterRoutes);
 
 // Tes rute utama
 app.get('/', (req, res) => {
