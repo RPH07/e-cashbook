@@ -86,9 +86,12 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
           id: String(t.id),
           // Ambil nama dari object relasi backend
           account: t.account?.account_name || 'Tanpa Akun',
-          category: t.category?.name || 'Tanpa Kategori'
+          category: t.category?.name || 'Tanpa Kategori',
+          // Map backend fields ke frontend fields
+          note: t.description || t.note || '',
+          proofLink: t.evidence_link || t.proofLink || null
         }));
-        setTransactions(apiData as any);
+        setTransactions(mappedData as any);
 
       } catch (error) {
         console.error("Gagal load data context:", error);
@@ -147,13 +150,13 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         date: input.date,
         note: input.note,
 
-        account: input.accountName,   
-        category: input.categoryName, 
+        account: response.account?.account_name || input.accountName,   
+        category: response.category?.name || input.categoryName, 
 
         proofLink: input.proofLink,
-        status: statusAwal,
-        createdByRole: userRole,
-        createdByName: userName
+        status: response.status || statusAwal,
+        createdByRole: response.user?.role || userRole,
+        createdByName: response.user?.name || userName
       };
 
       setTransactions((prev) => [newTxForUI, ...prev]);
@@ -169,7 +172,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     try {
       const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
 
-      await transactionService.update(id, {
+      const response = await transactionService.update(id, {
         type: input.type,
         amount: input.amount,
         date: input.date,
@@ -182,22 +185,9 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         createdByName: userName
       });
 
-      setTransactions(prev => prev.map(t => {
-        if (t.id === id) {
-          return {
-            ...t, 
-            type: input.type,
-            amount: input.amount,
-            date: input.date,
-            note: input.note,
-            account: input.accountName,   
-            category: input.categoryName, 
-            proofLink: input.proofLink,
-            status: statusAwal
-          };
-        }
-        return t;
-      }));
+      // Refresh dari backend untuk memastikan data terbaru
+      const updatedTransactions = await transactionService.getAll();
+      setTransactions(updatedTransactions as any);
 
       recordLog('UPDATE', `Ref: ${id.substring(0,6)}`, `Update data Rp${input.amount}`);
 
