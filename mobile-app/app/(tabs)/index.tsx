@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity,
-    StatusBar, Dimensions, Modal, FlatList, Animated, ScrollView, ActivityIndicator
+    StatusBar, Dimensions, Modal, FlatList, Animated, ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -338,13 +338,14 @@ export default function Dashboard() {
                         yAxisTextStyle={{ fontSize: 10, color: '#666' }}
                         formatYLabel={(value) => formatCompactNumber(parseFloat(value))}
                         xAxisThickness={0}
-                        height={150}
+                        height={120}
                         width={screenWidth - 110}
                         adjustToWidth={true}
                         initialSpacing={20}
                         endSpacing={20}
                         spacing={55}
                         scrollToEnd
+                        noOfSections={3}
                     />
                 </View>
                 {(userRole === 'admin' || userRole === 'finance') ? (
