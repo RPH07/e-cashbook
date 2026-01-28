@@ -5,27 +5,35 @@ const {Op} = require('sequelize');
 const AuditLogService = require('./auditLogService');
 
 class TransactionService {
-    // Membuat transaksi baru dengan logika perhitungan saldo dan referensi id
     static async createTransaction(data) {
         try {
-        // Membuat id referensi unik
         const prefix = data.type === 'transfer' ? 'TRF' : 'TRX';
         const timestamp = new Date().getTime();
         const random = Math.floor(1000 + Math.random() * 1000);
         const generatedRefId = `${prefix}-${timestamp}-${random}`;
 
+        const transactionStatus = data.status || 'pending';
+
         // Menyimpan transaksi dan referensi id
         const newTransaction = await Transaction.create({
             ...data,
             reference_id: data.referenceId || generatedRefId,
-            status: 'pending',
+            status: transactionStatus,
             balance_before: 0,
             balance_after: 0
         });
 
         await AuditLogService.record(data.userId, 'CREATE_TRANSACTION', `Membuat transaksi ${generatedRefId} sebesar ${data.amount}`)
 
-        return newTransaction;
+        const fullTransaction = await Transaction.findByPk(newTransaction.id, {
+            include: [
+                {model: Account, as: 'account', attributes: ['account_name', 'account_type']},
+                {model: Category, as: 'category', attributes: ['name', 'type']},
+                {model: User, as: 'user', attributes: ['name', 'role']}
+            ]
+        });
+
+        return fullTransaction;
 
         }catch (error) {
             throw error;
@@ -162,12 +170,21 @@ class TransactionService {
         }
     }
 
-    static async updateTransaction (id, userId, data) {
+    static async updateTransaction (id, userId, userRole, data) {
         try {
-            const transaction = await Transaction.findOne({where: {id, userId}});
+            // Admin/Finance bisa edit transaksi siapa saja, Staff hanya transaksi sendiri
+            const whereCondition = (userRole === 'admin' || userRole === 'finance') 
+                ? {id} 
+                : {id, userId};
+            
+            const transaction = await Transaction.findOne({where: whereCondition});
             if(!transaction) throw new Error('Transaksi Tidak Ditemukan');
 
-            if (transaction.status !== 'pending') throw new Error(`Transaksi dengan status ${transaction.status} tidak dapat diubah`);
+            // Staff hanya bisa edit transaksi pending
+            // Admin/Finance bisa edit semua transaksi
+            if (userRole === 'staff' && transaction.status !== 'pending') {
+                throw new Error(`Transaksi dengan status ${transaction.status} tidak dapat diubah`);
+            }
 
             const allowedUpdates = {
                 amount: data.amount || transaction.amount,
@@ -180,9 +197,14 @@ class TransactionService {
                 evidence_link: data.evidence_link || transaction.evidence_link,
             }
 
+            // Tentukan status: admin/finance bisa set status dari request, staff reset ke pending
+            const newStatus = (userRole === 'admin' || userRole === 'finance') 
+                ? (data.status || transaction.status) 
+                : 'pending';
+
             await transaction.update({
                 ...allowedUpdates,
-                status: 'pending',
+                status: newStatus,
                 balance_before: 0,
                 balance_after: 0
             });
@@ -190,7 +212,16 @@ class TransactionService {
             // Mencatat log audit
             await AuditLogService.record(userId, 'UPDATE_TRANSACTION', `Memperbarui transaksi ID ${transaction.reference_id}`);
 
-            return transaction;
+            // Ambil data lengkap dengan relasi untuk dikembalikan ke client
+            const fullTransaction = await Transaction.findByPk(transaction.id, {
+                include: [
+                    {model: Account, as: 'account', attributes: ['account_name', 'account_type']},
+                    {model: Category, as: 'category', attributes: ['name', 'type']},
+                    {model: User, as: 'user', attributes: ['name', 'role']}
+                ]
+            });
+
+            return fullTransaction;
 
         }catch (error) {
             throw error;
