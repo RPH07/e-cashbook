@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert 
+import {
+    View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator
 } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import FloatingInput from '@/components/FloatingInput';
-// Import userRole juga dari Context
-import { useTransaction, Transaction } from '../../context/TransactionContext'; 
+import { useTransaction, Transaction } from '../../context/TransactionContext';
+import { transactionService } from '@/services/transactionService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TransactionType = 'pemasukan' | 'pengeluaran';
@@ -16,7 +16,7 @@ type TransactionType = 'pemasukan' | 'pengeluaran';
 export default function CreateTransaction() {
     const insets = useSafeAreaInsets();
     const { addTransaction, updateTransaction, transactions, userRole, userName } = useTransaction();
-    
+
     const params = useLocalSearchParams();
     const editId = params.id as string;
     const isEditMode = !!editId;
@@ -25,27 +25,55 @@ export default function CreateTransaction() {
     const [date, setDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [amount, setAmount] = useState('');
-    const [category, setCategory] = useState('');
-    const [account, setAccount] = useState('Giro');
     const [note, setNote] = useState('');
-    // const [image, setImage] = useState<string | null>(null);
+
+    const [accounts, setAccounts] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
+
+    const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+
     const [proofLink, setProofLink] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        if (isEditMode) {
+        const loadMasterData = async () => {
+            try {
+                const accData = await transactionService.getAccounts();
+                const catData = await transactionService.getCategories();
+                setAccounts(accData || []);
+                setCategories(catData || []);
+
+                if (!isEditMode && accData?.length > 0) setSelectedAccountId(accData[0].id);
+                if (!isEditMode && catData?.length > 0) setSelectedCategoryId(catData[0].id);
+
+            } catch (error) {
+                console.error("Gagal load master data", error);
+            }
+        };
+        loadMasterData();
+    }, []);
+
+    useEffect(() => {
+        if (isEditMode && accounts.length > 0 && categories.length > 0) {
             const txToEdit = transactions.find(t => t.id === editId);
+
             if (txToEdit) {
                 setType(txToEdit.type);
                 setDate(new Date(txToEdit.date));
                 setAmount(txToEdit.amount.toString());
-                setCategory(txToEdit.category);
-                setAccount(txToEdit.account);
                 setNote(txToEdit.note || '');
-                // setImage(txToEdit.imageUri || null);
                 setProofLink(txToEdit.proofLink || '');
+
+                const foundAccount = accounts.find(a => a.name === txToEdit.account);
+                if (foundAccount) setSelectedAccountId(foundAccount.id);
+
+                // Cari ID Kategori berdasarkan Nama
+                const foundCategory = categories.find(c => c.name === txToEdit.category);
+                if (foundCategory) setSelectedCategoryId(foundCategory.id);
             }
         }
-    }, [editId]);
+    }, [editId, transactions, accounts, categories]);
 
     const themeColor = type === 'pemasukan' ? '#2e7d32' : '#c62828';
 
@@ -61,76 +89,68 @@ export default function CreateTransaction() {
     };
 
     // const pickImage = async () => {
-
     //     // Request Permission dulu
-
     //     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
     //     if (status !== 'granted') {
-
     //         Alert.alert('Maaf', 'Kami butuh izin akses galeri buat upload struk!', [{ text: 'Oke' }]);
-
     //         return;
-
     //     }
-
     //     let result = await ImagePicker.launchImageLibraryAsync({
-
     //         mediaTypes: ['images'],
-
     //         allowsEditing: true,
-
     //         aspect: [4, 3],
-
     //         quality: 0.5,
-
     //     });
-
     //     if (!result.canceled) {
-
     //         setImage(result.assets[0].uri);
-
     //     }
-
     // };
 
-
-    const handleSave = () => {
-        if (!amount || !category) {
-            Alert.alert("Nominal dan Kategori wajib diisi ya!");
+    const handleSave = async () => {
+        if (!amount || !selectedAccountId || !selectedCategoryId) {
+            Alert.alert("Eits!", "Nominal, Akun, dan Kategori wajib dipilih ya!");
             return;
         }
 
-        // const autoStatus = userRole === 'staff' ? 'pending' : 'approved';
+        setIsLoading(true);
+        try {
+            const selectedAccountObj = accounts.find(a => a.id === selectedAccountId);
+            const selectedCategoryObj = categories.find(c => c.id === selectedCategoryId);
 
-        const transactionData: Transaction = {
-            id: isEditMode ? editId : Date.now().toString(),
-            type: type,
-            amount: parseFloat(amount),
-            category: category,
-            date: date.toISOString(),
-            note: note,
-            account: account,
-            // imageUri: image,
-            proofLink: proofLink,
-            createdByRole: userRole,
-            createdByName: userName,
-            status: 'pending'
-        };
+            const payload = {
+                type: type,
+                amount: parseFloat(amount),
+                date: date.toISOString(),
+                note: note,
+                proofLink: proofLink,
 
-        if (isEditMode) {
-            updateTransaction(transactionData);
-            Alert.alert("Berhasil", "Data berhasil diperbarui!");
-        } else {
-            addTransaction(transactionData);
-            if (userRole === 'staff') {
-                Alert.alert("Terkirim!", "Transaksi masuk antrian approval (Pending).");
+                accountId: selectedAccountId!,
+                accountName: selectedAccountObj?.name || 'Unknown',
+                categoryId: selectedCategoryId!,
+                categoryName: selectedCategoryObj?.name || 'Unknown',
+            };
+
+            if (isEditMode) {
+                await updateTransaction(editId, payload);
+                Alert.alert("Berhasil", "Data transaksi berhasil diperbarui!");
             } else {
-                Alert.alert("Berhasil!", "Transaksi berhasil disimpan (Auto-Approved).");
-            }
-        }
+                await addTransaction(payload);
 
-        router.back();
+                if (userRole === 'staff') {
+                    Alert.alert("Terkirim!", "Transaksi masuk antrian approval.");
+                } else {
+                    Alert.alert("Berhasil!", "Transaksi berhasil disimpan.");
+                }
+            }
+
+            router.back();
+
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Gagal", "Terjadi kesalahan koneksi.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -173,25 +193,57 @@ export default function CreateTransaction() {
                     <FloatingInput label="Nominal (Rp)" value={amount} onChangeText={setAmount} keyboardType="numeric" style={{ marginTop: 20 }} />
 
                     <Text style={styles.label}>Sumber Dana / Akun</Text>
-                    <View style={styles.pillContainer}>
-                        {['Total', 'Tabungan', 'Giro'].map((acc) => (
-                            <TouchableOpacity
-                                key={acc}
-                                style={[styles.pill, account === acc && { backgroundColor: themeColor, borderColor: themeColor }]}
-                                onPress={() => setAccount(acc)}
-                            >
-                                <Text style={[styles.pillText, account === acc && { color: 'white' }]}>{acc}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                        <View style={styles.pillContainer}>
+                            {accounts.map((acc) => (
+                                <TouchableOpacity
+                                    key={acc.id}
+                                    style={[
+                                        styles.pill,
+                                        selectedAccountId === acc.id && { backgroundColor: themeColor, borderColor: themeColor }
+                                    ]}
+                                    onPress={() => setSelectedAccountId(acc.id)}
+                                >
+                                    <Text style={[
+                                        styles.pillText,
+                                        selectedAccountId === acc.id && { color: 'white' }
+                                    ]}>
+                                        {acc.account_name}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </ScrollView>
 
-                    <FloatingInput label="Kategori" value={category} onChangeText={setCategory} style={{ marginTop: 20 }} />
+                    <Text style={styles.label}>Kategori</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                        <View style={styles.pillContainer}>
+                            {categories.map((cat) => (
+                                <TouchableOpacity
+                                    key={cat.id}
+                                    style={[
+                                        styles.pill,
+                                        selectedCategoryId === cat.id && { backgroundColor: themeColor, borderColor: themeColor }
+                                    ]}
+                                    onPress={() => setSelectedCategoryId(cat.id)}
+                                >
+                                    <Text style={[
+                                        styles.pillText,
+                                        selectedCategoryId === cat.id && { color: 'white' }
+                                    ]}>
+                                        {cat.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </ScrollView>
+
                     <Text style={styles.label}>Bukti Transaksi</Text>
-                    <FloatingInput 
+                    <FloatingInput
                         label='Paste Link Google Drive di sini...'
                         value={proofLink}
                         onChangeText={setProofLink}
-                        style={{marginBottom: 20}}
+                        style={{ marginBottom: 20 }}
                     />
                     {/* <Text style={styles.label}>Bukti Transaksi</Text>
                     <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
@@ -213,8 +265,13 @@ export default function CreateTransaction() {
                 <TouchableOpacity
                     style={[styles.saveButton, { backgroundColor: themeColor }]}
                     onPress={handleSave}
+                    disabled={isLoading}
                 >
-                    <Text style={styles.saveText}>{isEditMode ? 'UPDATE TRANSAKSI' : 'SIMPAN TRANSAKSI'}</Text>
+                    {isLoading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text style={styles.saveText}>{isEditMode ? 'UPDATE TRANSAKSI' : 'SIMPAN TRANSAKSI'}</Text>
+                    )}
                 </TouchableOpacity>
             </View>
         </View>
