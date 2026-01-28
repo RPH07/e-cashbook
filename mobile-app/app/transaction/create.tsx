@@ -56,24 +56,63 @@ export default function CreateTransaction() {
 
     useEffect(() => {
         if (isEditMode && accounts.length > 0 && categories.length > 0) {
-            const txToEdit = transactions.find(t => t.id === editId);
+            console.log('=== Edit Mode Debug ===');
+            console.log('Edit ID (from params):', editId, 'Type:', typeof editId);
+            console.log('Transactions in context:', transactions.length, 'items');
+            console.log('Transaction IDs:', transactions.map(t => ({ id: t.id, type: typeof t.id })));
+            
+            const txToEdit = transactions.find(t => String(t.id) === String(editId));
 
             if (txToEdit) {
+                console.log('=== Loading Edit Data ===');
+                console.log('Transaction:', txToEdit);
+                console.log('Available accounts:', accounts);
+                console.log('Available categories:', categories);
+                
                 setType(txToEdit.type);
                 setDate(new Date(txToEdit.date));
                 setAmount(txToEdit.amount.toString());
-                setNote(txToEdit.note || '');
-                setProofLink(txToEdit.proofLink || '');
+                
+                // Handle field mapping: backend uses 'description' and 'evidence_link'
+                // Frontend uses 'note' and 'proofLink'
+                const noteValue = (txToEdit as any).note || (txToEdit as any).description || '';
+                const proofValue = (txToEdit as any).proofLink || (txToEdit as any).evidence_link || '';
+                
+                setNote(noteValue);
+                setProofLink(proofValue);
 
-                const foundAccount = accounts.find(a => a.name === txToEdit.account);
-                if (foundAccount) setSelectedAccountId(foundAccount.id);
+                // Account bisa punya field: account_name, name, atau account
+                const foundAccount = accounts.find(a => 
+                    a.account_name === txToEdit.account || 
+                    a.name === txToEdit.account
+                );
+                if (foundAccount) {
+                    console.log('✅ Found account:', foundAccount);
+                    setSelectedAccountId(foundAccount.id);
+                } else {
+                    console.log('❌ Account not found for:', txToEdit.account);
+                }
 
-                // Cari ID Kategori berdasarkan Nama
+                // Category bisa punya field: name
                 const foundCategory = categories.find(c => c.name === txToEdit.category);
-                if (foundCategory) setSelectedCategoryId(foundCategory.id);
+                if (foundCategory) {
+                    console.log('✅ Found category:', foundCategory);
+                    setSelectedCategoryId(foundCategory.id);
+                } else {
+                    console.log('❌ Category not found for:', txToEdit.category);
+                }
+                
+                console.log('=== Loaded Values ===');
+                console.log('Type:', txToEdit.type);
+                console.log('Amount:', txToEdit.amount.toString());
+                console.log('Note:', noteValue);
+                console.log('ProofLink:', proofValue);
+            } else {
+                console.log('❌ Transaction not found with ID:', editId);
+                console.log('Available transactions:', transactions);
             }
         }
-    }, [editId, transactions, accounts, categories]);
+    }, [editId, transactions, accounts, categories, isEditMode]);
 
     const themeColor = type === 'pemasukan' ? '#2e7d32' : '#c62828';
 
