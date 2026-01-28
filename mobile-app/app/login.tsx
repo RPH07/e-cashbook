@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import FloatingInput from '@/components/FloatingInput';
 import { useTransaction, UserRole } from '@/context/TransactionContext';
+import { authService } from '@/services/authService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({email: '', password: ''});
-
   const validate = () => {
     let valid = true;
     let newErrors = {email: '', password: ''};
@@ -53,47 +53,32 @@ export default function LoginScreen() {
     }
   }
 
-  // Simulasi Role 
 const { setUserRole, setUserName, recordLog } = useTransaction();
-const handleLogin = async() => {
-    if (validate()) {
-      setIsLoading(true);
-      
-      // Simulasi delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const dummyToken = "abc-123-token-rahasia";
+const handleLogin = async () => {
+    if (!validate()) return;
 
-      let role: UserRole = 'staff'; 
-      let name = 'User'; 
-      const lowerEmail = email.toLowerCase();
+    setIsLoading(true);
+    try {
+      const data = await authService.login(email, password);
       
-      if(lowerEmail.includes('admin')) {
-          role = 'admin';
-          name = 'Pak Bos (Administrator)'; 
-      } else if(lowerEmail.includes('finance')) {
-          role = 'finance';
-          name = 'Bu Bendahara'; 
-      } else {
-          // Kalau staff, ambil nama dari depan email (misal: budi@gmail.com -> Budi)
-          const nameFromEmail = email.split('@')[0];
-          name = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
-      }
+      // console.log("Login Sukses:", data); 
 
-      // Simpan ke HP (SecureStore)
-      await SecureStore.setItemAsync('userToken', dummyToken);
-      await SecureStore.setItemAsync('userRole', role);
-      await SecureStore.setItemAsync('userName', name);
+      const roleDiterima = data.user.role || 'staff';
+      setUserRole(roleDiterima as any); 
+      setUserName(data.user.name);
       
-      recordLog('LOGIN', 'System', `${name} (${role}) berhasil login ke aplikasi`)
-      setUserRole(role); 
-      setUserName(name);
-      
-      // Pindah ke Dashboard
-      setIsLoading(false);
+      recordLog('LOGIN', 'System', `${data.user.name} (${data.user.role}) login via API`);
+
       setEmail('');
       setPassword('');
       router.replace('/(tabs)');
-    } 
+
+    } catch (error: any) {
+      // console.error("Login Gagal:", error);
+      Alert.alert("Login Gagal", typeof error === 'string' ? error : "Periksa email dan password Anda.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isLoading) {
