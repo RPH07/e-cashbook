@@ -168,7 +168,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     try {
       const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
 
-      const response = await transactionService.update(id, {
+      await transactionService.update(id, {
         type: input.type,
         amount: input.amount,
         date: input.date,
@@ -198,21 +198,32 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
       await transactionService.delete(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
       recordLog('DELETE', `Ref: ${id.substring(0, 6)}`, 'Hapus data');
-    } catch (e) { Alert.alert("Gagal hapus"); }
+    } catch (e) { 
+      console.error('gagal hapus', e)
+      Alert.alert("Gagal hapus"); 
+    }
   };
 
   const approveTransaction = async (id: string) => {
     try {
       await transactionService.approve(id);
       setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'approved' } : t)));
-    } catch (e) { Alert.alert("Gagal approve"); }
+      recordLog('APPROVE', `Ref: ${id.substring(0, 6)}`, 'Transaksi disetujui');
+    } catch (e) { 
+      console.error('gagal approve', e)
+      Alert.alert("Gagal approve"); 
+    }
   };
 
   const rejectTransaction = async (id: string) => {
     try {
       await transactionService.reject(id);
       setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'rejected' } : t)));
-    } catch (e) { Alert.alert("Gagal reject"); }
+      recordLog('REJECT', `Ref: ${id.substring(0, 6)}`, 'Transaksi ditolak');
+    } catch (e) {
+      console.error('gagal reject', e)
+      Alert.alert("Gagal reject"); 
+    }
   };
 
   return (
