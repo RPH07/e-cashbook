@@ -12,9 +12,9 @@ router.get('/', authMiddleware, transactionController.getAllTransaction);
 
 router.put('/:id', authMiddleware, transactionController.updateTransaction);
 
-// Approve dan reject hanya untuk admin dan auditor
-router.patch('/:id/approve', authMiddleware, roleMiddleware('admin', 'auditor'), transactionController.approveTransaction);
-router.patch('/:id/reject', authMiddleware, roleMiddleware('admin', 'auditor'), transactionController.rejectTransaction);
+// Approve dan reject hanya untuk admin dan finance
+router.patch('/:id/approve', authMiddleware, roleMiddleware('admin', 'finance'), transactionController.approveTransaction);
+router.patch('/:id/reject', authMiddleware, roleMiddleware('admin', 'finance'), transactionController.rejectTransaction);
 
 // Void dan Delete hanya untuk admin dan finance
 router.patch('/:id/void', authMiddleware, roleMiddleware('admin', 'finance'), transactionController.voidTransaction);
