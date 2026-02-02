@@ -96,14 +96,52 @@ export default function Dashboard() {
     });
 
     const totalIncome = filteredTransactions
-        .filter(t => t.type === 'pemasukan')
+        .filter(t => t.type === 'pemasukan' || t.type === 'income')
         .reduce((sum, t) => sum + t.amount, 0);
 
     const totalExpense = filteredTransactions
-        .filter(t => t.type === 'pengeluaran')
+        .filter(t => t.type === 'pengeluaran' || t.type === 'expense')
         .reduce((sum, t) => sum + t.amount, 0);
 
-    const balance = totalIncome - totalExpense;
+    let transferBalance = 0;
+    if (selectedAccount !== 'Semua') {
+        const transferOut = transactions
+            .filter(t => {
+                if (t.status !== 'approved' || t.type !== 'transfer') return false;
+                if (t.account !== selectedAccount) return false;
+                
+                if (period === 'month') {
+                    const txDate = new Date(t.date);
+                    const now = new Date();
+                    if (txDate.getMonth() !== now.getMonth() || txDate.getFullYear() !== now.getFullYear()) {
+                        return false;
+                    }
+                }
+                return true;
+            })
+            .reduce((sum, t) => sum + t.amount, 0);
+
+        const transferIn = transactions
+            .filter(t => {
+                if (t.status !== 'approved' || t.type !== 'transfer') return false;
+                if (!t.toAccount || t.toAccount !== selectedAccount) return false;
+                
+                if (period === 'month') {
+                    const txDate = new Date(t.date);
+                    const now = new Date();
+                    if (txDate.getMonth() !== now.getMonth() || txDate.getFullYear() !== now.getFullYear()) {
+                        return false;
+                    }
+                }
+                return true;
+            })
+            .reduce((sum, t) => sum + t.amount, 0);
+
+        transferBalance = transferIn - transferOut;
+    }
+
+    // Saldo = Pemasukan - Pengeluaran + (Transfer Masuk - Transfer Keluar)
+    const balance = totalIncome - totalExpense + transferBalance;
 
     // logic tracker user
     const myPendingCount = transactions.filter(t => t.createdByRole === 'staff' && t.status === 'pending').length;
