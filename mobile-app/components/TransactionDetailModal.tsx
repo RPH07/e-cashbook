@@ -96,6 +96,7 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
 
     // Helper Variables
     const isIncome = transaction.type === 'pemasukan' || transaction.type === 'income';
+    const isTransfer = transaction.type === 'transfer';
     
     // Status helpers
     const isPending = transaction.status === 'pending';
@@ -280,8 +281,10 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                         contentContainerStyle={styles.content}
                     >
                         {/* Amount Box */}
-                        <View style={[styles.amountBox, { backgroundColor: isIncome ? '#e8f5e9' : '#ffebee' }]} >
-                            <Text style={styles.labelAmount} >{isIncome ? 'Uang Masuk' : 'Uang Keluar'}</Text>
+                        <View style={[styles.amountBox, { backgroundColor: isTransfer ? '#e3f2fd' : isIncome ? '#e8f5e9' : '#ffebee' }]} >
+                            <Text style={styles.labelAmount} >
+                                {isTransfer ? 'Transfer Internal' : isIncome ? 'Uang Masuk' : 'Uang Keluar'}
+                            </Text>
                             <Text style={styles.amountText} >{formattedAmount}</Text>
                         </View>
 
@@ -292,19 +295,33 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
                                 <Text style={styles.value}>{formattedDate}</Text>
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={styles.label}>Akun</Text>
+                                <Text style={styles.label}>{isTransfer ? 'Dari Akun' : 'Akun'}</Text>
                                 <Text style={styles.value}>{transaction.account}</Text>
                             </View>
                         </View>
 
-                        <View style={styles.gridRow}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={styles.label}>Kategori</Text>
-                                <Text style={styles.value}>{transaction.category}</Text>
+                        {/* Tampilkan Akun Tujuan untuk Transfer */}
+                        {isTransfer && transaction.toAccount && (
+                            <View style={styles.gridRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.label}>Ke Akun</Text>
+                                    <Text style={[styles.value, { color: '#1976d2', fontWeight: 'bold' }]}>
+                                        {transaction.toAccount}
+                                    </Text>
+                                </View>
                             </View>
-                            <View style={{ alignItems: 'flex-end' }}>
+                        )}
+
+                        <View style={styles.gridRow}>
+                            {!isTransfer && (
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.label}>Kategori</Text>
+                                    <Text style={styles.value}>{transaction.category}</Text>
+                                </View>
+                            )}
+                            <View style={{ alignItems: isTransfer ? 'flex-start' : 'flex-end', flex: isTransfer ? 1 : undefined }}>
                                 <Text style={styles.label}>Dibuat Oleh</Text>
-                                <View style={{ alignItems: 'flex-end' }}>
+                                <View style={{ alignItems: isTransfer ? 'flex-start' : 'flex-end' }}>
                                     <Text style={[styles.value, { fontWeight: 'bold' }]}>
                                         {transaction.createdByName || 'User'}
                                     </Text>
