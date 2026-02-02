@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } fr
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import FloatingInput from '@/components/FloatingInput';
-import { useTransaction, UserRole } from '@/context/TransactionContext';
+import { useTransaction } from '@/context/TransactionContext';
 import { authService } from '@/services/authService';
 
 export default function LoginScreen() {
@@ -37,7 +37,7 @@ export default function LoginScreen() {
   // cek token pas app mulai
   useEffect(() => {
     checkloginStatus();
-  });
+  }, []);
 
   const checkloginStatus = async () => {
     try {
@@ -53,7 +53,7 @@ export default function LoginScreen() {
     }
   }
 
-const { setUserRole, setUserName, recordLog } = useTransaction();
+const { setUserRole, setUserName, recordLog, refreshTransactions } = useTransaction();
 const handleLogin = async () => {
     if (!validate()) return;
 
@@ -68,6 +68,8 @@ const handleLogin = async () => {
       setUserName(data.user.name);
       
       recordLog('LOGIN', 'System', `${data.user.name} (${data.user.role}) login via API`);
+      // Refresh transaksi setelah login berhasil
+      await refreshTransactions();
 
       setEmail('');
       setPassword('');
