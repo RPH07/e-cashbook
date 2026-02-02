@@ -15,6 +15,7 @@ api.interceptors.request.use(
     async (config) => {
         try {
             const token = await SecureStore.getItemAsync('userToken');
+            // console.log("Interceptor Token:", token ? "Token Ada" : "Token KOSONG");
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -24,6 +25,28 @@ api.interceptors.request.use(
         return config;
     },
     (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// Response interceptor untuk handle token expired (401)
+api.interceptors.response.use(
+    (response) => {
+        return response;
+    },
+    async (error) => {
+        if (error.response?.status === 401) {
+            console.log("Token expired atau invalid, logout otomatis...");
+            
+            // Hapus token dan data user
+            await SecureStore.deleteItemAsync('userToken');
+            await SecureStore.deleteItemAsync('userRole');
+            await SecureStore.deleteItemAsync('userName');
+            
+            // Import router dinamis untuk redirect
+            const { router } = await import('expo-router');
+            router.replace('/login');
+        }
         return Promise.reject(error);
     }
 );
