@@ -297,7 +297,7 @@ class TransactionService {
                     {model: Category, as: 'category', attributes: ['name', 'type']},
                     {model: User, as: 'user', attributes: ['name', 'role']}
                 ],
-                order: [['date', 'DESC'], ['created_at', 'DESC']]
+                order: [['date', 'DESC'], ['createdAt', 'DESC']]
 
             })
 
