@@ -23,10 +23,10 @@ const getDashboardData = async (req, res) => {
 
 const getAuditLogs = async (req, res) => {
     try {
-        if (req.user.role !== 'admin' && req.user.role !== 'auditor') {
+        if (req.user.role !== 'admin' && req.user.role !== 'auditor' && req.user.role !== 'finance') {
             return res.status(403).json({
                 success: false,
-                message: 'Akses ditolak. Hanya admin dan auditor yang dapat mengakses log audit.'
+                message: 'Akses ditolak. Hanya admin, auditor dan finance yang dapat mengakses log audit.'
             });
         }
 
