@@ -64,12 +64,18 @@ const handleLogin = async () => {
       // console.log("Login Sukses:", data); 
 
       const roleDiterima = data.user.role || 'staff';
+      const namaDiterima = data.user.name;
       setUserRole(roleDiterima as any); 
-      setUserName(data.user.name);
+      setUserName(namaDiterima);
       
-      recordLog('LOGIN', 'System', `${data.user.name} (${data.user.role}) login via API`);
       // Refresh transaksi setelah login berhasil
       await refreshTransactions();
+      
+      await recordLog('LOGIN', 
+          'System', 
+          `${namaDiterima} (${roleDiterima}) login ke aplikasi`,
+          namaDiterima, 
+          roleDiterima);
 
       setEmail('');
       setPassword('');
