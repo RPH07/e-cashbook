@@ -11,9 +11,11 @@ interface Props {
 
 const TransactionCard: React.FC<Props> = ({ transaction, onPress }) => {
     const isIncome = transaction.type === 'pemasukan' || transaction.type === 'income';
-    let color = isIncome ? '#2e7d32' : '#c62828';
-    let iconName: keyof typeof Ionicons.glyphMap = isIncome ? 'arrow-down-circle' : 'arrow-up-circle';
-    let bgColor = isIncome ? '#e8f5e9' : '#ffebee';
+    const isTransfer = transaction.type === 'transfer';
+    
+    let color = isTransfer ? '#1976d2' : isIncome ? '#2e7d32' : '#c62828';
+    let iconName: keyof typeof Ionicons.glyphMap = isTransfer ? 'swap-horizontal' : isIncome ? 'arrow-down-circle' : 'arrow-up-circle';
+    let bgColor = isTransfer ? '#e3f2fd' : isIncome ? '#e8f5e9' : '#ffebee';
     let statusColor = color;
     let statusText = '';
     let cardBorderColor = '#eee';
@@ -73,7 +75,7 @@ return (
             <View style={styles.infoContainer}>
                 <View style={styles.headerRow}>
                     <Text style={styles.category} numberOfLines={1}>
-                        {transaction.category || 'Umum'}
+                        {isTransfer ? `Transfer: ${transaction.account} → ${transaction.toAccount || 'Unknown'}` : (transaction.category || 'Umum')}
                     </Text>
                     
                     {(isPending || isVerified || isRejected || isVoid) && (
@@ -92,7 +94,7 @@ return (
                 </View>
                 
                 <Text style={styles.date}>
-                    {formattedDate} • {transaction.account || 'Tunai'}
+                    {formattedDate} • {isTransfer ? 'Transfer Internal' : (transaction.account || 'Tunai')}
                 </Text>
                 
                 {transaction.note ? (
