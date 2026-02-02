@@ -11,7 +11,7 @@ import { useTransaction, Transaction } from '../../context/TransactionContext';
 import { transactionService } from '@/services/transactionService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type TransactionType = 'pemasukan' | 'pengeluaran';
+type TransactionType = 'pemasukan' | 'pengeluaran' | 'transfer';
 
 export default function CreateTransaction() {
     const insets = useSafeAreaInsets();
@@ -32,6 +32,7 @@ export default function CreateTransaction() {
 
     const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+    const [selectedToAccountId, setSelectedToAccountId] = useState<number | null>(null); // For transfer
 
     const [proofLink, setProofLink] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +70,13 @@ export default function CreateTransaction() {
                 // console.log('Available accounts:', accounts);
                 // console.log('Available categories:', categories);
                 
-                setType(txToEdit.type);
+                // Map backend type to frontend type
+                const mappedType: TransactionType = 
+                    txToEdit.type === 'income' ? 'pemasukan' : 
+                    txToEdit.type === 'expense' ? 'pengeluaran' :
+                    txToEdit.type === 'transfer' ? 'transfer' :
+                    txToEdit.type as TransactionType;
+                setType(mappedType);
                 setDate(new Date(txToEdit.date));
                 setAmount(txToEdit.amount.toString());
                 
@@ -114,7 +121,7 @@ export default function CreateTransaction() {
         }
     }, [editId, transactions, accounts, categories, isEditMode]);
 
-    const themeColor = type === 'pemasukan' ? '#2e7d32' : '#c62828';
+    const themeColor = type === 'pemasukan' ? '#2e7d32' : type === 'pengeluaran' ? '#c62828' : '#1976d2';
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('id-ID', {
@@ -146,28 +153,50 @@ export default function CreateTransaction() {
     // };
 
     const handleSave = async () => {
-        if (!amount || !selectedAccountId || !selectedCategoryId) {
-            Alert.alert("Eits!", "Nominal, Akun, dan Kategori wajib dipilih ya!");
-            return;
+        // Validasi berbeda untuk transfer vs non-transfer
+        if (type === 'transfer') {
+            if (!amount || !selectedAccountId || !selectedToAccountId) {
+                Alert.alert("Eits!", "Nominal, Akun Sumber, dan Akun Tujuan wajib diisi untuk transfer!");
+                return;
+            }
+            if (selectedAccountId === selectedToAccountId) {
+                Alert.alert("Eits!", "Akun Sumber dan Tujuan tidak boleh sama!");
+                return;
+            }
+        } else {
+            if (!amount || !selectedAccountId || !selectedCategoryId) {
+                Alert.alert("Eits!", "Nominal, Akun, dan Kategori wajib dipilih ya!");
+                return;
+            }
         }
 
         setIsLoading(true);
         try {
             const selectedAccountObj = accounts.find(a => a.id === selectedAccountId);
             const selectedCategoryObj = categories.find(c => c.id === selectedCategoryId);
+            const selectedToAccountObj = accounts.find(a => a.id === selectedToAccountId);
 
-            const payload = {
+            const payload: any = {
                 type: type,
                 amount: parseFloat(amount),
                 date: date.toISOString(),
                 note: note,
                 proofLink: proofLink,
-
                 accountId: selectedAccountId!,
-                accountName: selectedAccountObj?.name || 'Unknown',
-                categoryId: selectedCategoryId!,
-                categoryName: selectedCategoryObj?.name || 'Unknown',
+                accountName: selectedAccountObj?.account_name || 'Unknown',
             };
+
+            // Tambahkan categoryId hanya untuk non-transfer
+            if (type !== 'transfer') {
+                payload.categoryId = selectedCategoryId!;
+                payload.categoryName = selectedCategoryObj?.name || 'Unknown';
+            }
+
+            // Tambahkan toAccountId hanya untuk transfer
+            if (type === 'transfer') {
+                payload.toAccountId = selectedToAccountId!;
+                payload.toAccountName = selectedToAccountObj?.account_name || 'Unknown';
+            }
 
             if (isEditMode) {
                 await updateTransaction(editId, payload);
@@ -218,6 +247,12 @@ export default function CreateTransaction() {
                         >
                             <Text style={[styles.switchText, type === 'pengeluaran' && { color: themeColor }]}>Pengeluaran</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.switchButton, type === 'transfer' && styles.activeSwitch]}
+                            onPress={() => setType('transfer')}
+                        >
+                            <Text style={[styles.switchText, type === 'transfer' && { color: themeColor }]}>Transfer</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -231,7 +266,7 @@ export default function CreateTransaction() {
 
                     <FloatingInput label="Nominal (Rp)" value={amount} onChangeText={setAmount} keyboardType="numeric" style={{ marginTop: 20 }} />
 
-                    <Text style={styles.label}>Sumber Dana / Akun</Text>
+                    <Text style={styles.label}>{type === 'transfer' ? 'Akun Sumber' : 'Sumber Dana / Akun'}</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
                         <View style={styles.pillContainer}>
                             {accounts.map((acc) => (
@@ -254,28 +289,67 @@ export default function CreateTransaction() {
                         </View>
                     </ScrollView>
 
-                    <Text style={styles.label}>Kategori</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-                        <View style={styles.pillContainer}>
-                            {categories.map((cat) => (
-                                <TouchableOpacity
-                                    key={cat.id}
-                                    style={[
-                                        styles.pill,
-                                        selectedCategoryId === cat.id && { backgroundColor: themeColor, borderColor: themeColor }
-                                    ]}
-                                    onPress={() => setSelectedCategoryId(cat.id)}
-                                >
-                                    <Text style={[
-                                        styles.pillText,
-                                        selectedCategoryId === cat.id && { color: 'white' }
-                                    ]}>
-                                        {cat.name}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </ScrollView>
+                    {/* Tampilkan Akun Tujuan hanya untuk Transfer */}
+                    {type === 'transfer' && (
+                        <>
+                            <Text style={styles.label}>Akun Tujuan</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                                <View style={styles.pillContainer}>
+                                    {accounts.map((acc) => (
+                                        <TouchableOpacity
+                                            key={acc.id}
+                                            style={[
+                                                styles.pill,
+                                                selectedToAccountId === acc.id && { backgroundColor: themeColor, borderColor: themeColor },
+                                                selectedAccountId === acc.id && { opacity: 0.5 } // Disable akun sumber
+                                            ]}
+                                            onPress={() => {
+                                                if (acc.id !== selectedAccountId) {
+                                                    setSelectedToAccountId(acc.id);
+                                                }
+                                            }}
+                                            disabled={acc.id === selectedAccountId}
+                                        >
+                                            <Text style={[
+                                                styles.pillText,
+                                                selectedToAccountId === acc.id && { color: 'white' }
+                                            ]}>
+                                                {acc.account_name}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        </>
+                    )}
+
+                    {/* Tampilkan Kategori hanya untuk non-Transfer */}
+                    {type !== 'transfer' && (
+                        <>
+                            <Text style={styles.label}>Kategori</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                                <View style={styles.pillContainer}>
+                                    {categories.map((cat) => (
+                                        <TouchableOpacity
+                                            key={cat.id}
+                                            style={[
+                                                styles.pill,
+                                                selectedCategoryId === cat.id && { backgroundColor: themeColor, borderColor: themeColor }
+                                            ]}
+                                            onPress={() => setSelectedCategoryId(cat.id)}
+                                        >
+                                            <Text style={[
+                                                styles.pillText,
+                                                selectedCategoryId === cat.id && { color: 'white' }
+                                            ]}>
+                                                {cat.name}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        </>
+                    )}
 
                     <Text style={styles.label}>Bukti Transaksi</Text>
                     <FloatingInput
