@@ -22,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
     description: DataTypes.TEXT,
     evidence_link: DataTypes.STRING,
     status: {
-      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      type: DataTypes.ENUM('pending', 'approved', 'rejected', 'waiting_approval_a'),
       allowNull: false,
       defaultValue: 'pending'
     },

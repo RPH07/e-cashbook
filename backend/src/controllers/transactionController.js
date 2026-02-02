@@ -95,7 +95,7 @@ const updateTransaction = async (req, res) => {
 const approveTransaction = async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await TransactionService.approveTransaction(id, req.user.id);
+        const result = await TransactionService.approveTransaction(id, req.user.id, req.user.role);
 
         res.status(200).json({
             success: true,
@@ -113,7 +113,7 @@ const approveTransaction = async (req, res) => {
 const rejectTransaction = async (req, res) => {
     try {
         const {id} = req.params;
-        const result = await TransactionService.rejectTransaction(id, req.user.id);
+        const result = await TransactionService.rejectTransaction(id, req.user.id, req.user.role);
         res.status(200).json({
             success: true,
             message: 'Transaksi Berhasil Ditolak',
@@ -149,14 +149,14 @@ const deleteTransaction = async (req, res) => {
         const { id } = req.params;
         const userId = req.user.id;
 
-        const result = await TransactionService.deleteTransaction(id, userId);
+        const result = await TransactionService.deleteTransaction(id, userId, req.user.role);
 
         res.status(200).json({
             success: true,
             message: result.message,
         })
     }catch (error){
-        res.status(500).json({
+        res.status(400).json({
             success: false,
             message: error.message
         });
