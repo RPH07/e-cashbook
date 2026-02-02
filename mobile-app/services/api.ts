@@ -11,6 +11,13 @@ const api = axios.create({
     timeout: 10000,
 });
 
+export const reportService = {
+  getAuditLogs: async () => {
+    const response = await api.get('/report/audit-logs'); 
+    return response.data.data;
+  }
+};
+
 api.interceptors.request.use(
     async (config) => {
         try {
