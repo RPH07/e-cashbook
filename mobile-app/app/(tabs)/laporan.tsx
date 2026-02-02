@@ -167,7 +167,8 @@ export default function LaporanScreen() {
             const tDate = new Date(t.date);
             const isApproved = t.status === 'approved';
             const inRange = tDate >= startDate && tDate <= endDate;
-            return isApproved && inRange;
+            const isNotTransfer = t.type !== 'transfer';
+            return isApproved && inRange && isNotTransfer;
         })
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
