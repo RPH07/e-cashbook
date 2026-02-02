@@ -2,14 +2,15 @@ import api from './api';
 import { Transaction } from '@/context/TransactionContext';
 
 export interface CreateTransactionDTO {
-    type: 'pemasukan' | 'pengeluaran';
+    type: 'pemasukan' | 'pengeluaran' | 'transfer';
     amount: number;
     date: string;
     note?: string;
     proofLink?: string | null;
     status?: 'pending' | 'approved' | 'rejected';
     accountId: number;
-    categoryId: number;
+    categoryId?: number; // Optional untuk transfer
+    toAccountId?: number; // Untuk transfer
     createdByRole?: string;
     createdByName?: string;
 }
@@ -20,19 +21,31 @@ export const transactionService = {
             const response = await api.get('/transactions');
             const rawData = response.data.data || response.data;
 
-            return rawData.map((item: any) => ({
-                ...item,
+            // Fetch accounts untuk mapping toAccountId ke nama akun
+            const accountsResponse = await api.get('/master/accounts');
+            const accounts = accountsResponse.data.data || [];
+            const accountMap: Record<number, string> = {};
+            accounts.forEach((acc: any) => {
+                accountMap[acc.id] = acc.account_name || acc.name;
+            });
 
-                account: item.account?.account_name || item.Account?.account_name || 'Unknown',
+            return rawData.map((item: any) => {
+                let toAccountName = item.toAccount?.account_name || item.ToAccount?.account_name;
+                if (!toAccountName && item.toAccountId) {
+                    toAccountName = accountMap[item.toAccountId];
+                }
 
-                category: item.category?.name || item.Category?.name || 'Unknown',
-
-                createdByName: item.user?.name || item.User?.name || 'Unknown',
-                createdByRole: item.user?.role || item.User?.role || 'staff',
-
-                amount: Number(item.amount),
-                type: item.type === 'expense' ? 'pengeluaran' : (item.type === 'income' ? 'pemasukan' : item.type)
-            }));
+                return {
+                    ...item,
+                    account: item.account?.account_name || item.Account?.account_name || 'Unknown',
+                    category: item.category?.name || item.Category?.name || 'Unknown',
+                    toAccount: toAccountName || undefined,
+                    createdByName: item.user?.name || item.User?.name || 'Unknown',
+                    createdByRole: item.user?.role || item.User?.role || 'staff',
+                    amount: Number(item.amount),
+                    type: item.type === 'expense' ? 'pengeluaran' : (item.type === 'income' ? 'pemasukan' : item.type)
+                };
+            });
 
         } catch (error) {
             console.error("Gagal ambil transaksi:", error);
@@ -42,25 +55,33 @@ export const transactionService = {
 
     create: async (data: CreateTransactionDTO): Promise<any> => {
         try {
-            const typeMap = {
+            const typeMap: Record<string, string> = {
                 'pemasukan': 'income',
-                'pengeluaran': 'expense'
+                'pengeluaran': 'expense',
+                'transfer': 'transfer'
             };
 
-            const payload = {
+            const payload: any = {
                 date: data.date,
                 amount: Number(data.amount),
                 type: typeMap[data.type],
                 description: data.note,
                 evidence_link: data.proofLink,
                 accountId: data.accountId,
-                categoryId: data.categoryId,
                 status: data.status,
                 createdByRole: data.createdByRole,
                 createdByName: data.createdByName
             };
 
-            // console.log("Mengirim ke Backend (Final):", payload); 
+            // Tambahkan categoryId hanya untuk non-transfer
+            if (data.type !== 'transfer' && data.categoryId) {
+                payload.categoryId = data.categoryId;
+            }
+
+            // Tambahkan toAccountId untuk transfer
+            if (data.type === 'transfer' && (data as any).toAccountId) {
+                payload.toAccountId = (data as any).toAccountId;
+            }
 
             const response = await api.post('/transactions', payload);
 
@@ -75,25 +96,33 @@ export const transactionService = {
 
     update: async (id: string, data: CreateTransactionDTO): Promise<any> => {
         try {
-            const typeMap = {
+            const typeMap: Record<string, string> = {
                 'pemasukan': 'income',
-                'pengeluaran': 'expense'
+                'pengeluaran': 'expense',
+                'transfer': 'transfer'
             };
 
-            const payload = {
+            const payload: any = {
                 date: data.date,
                 amount: Number(data.amount),
                 type: typeMap[data.type],
                 description: data.note,
                 evidence_link: data.proofLink,
-
                 accountId: data.accountId,
-                categoryId: data.categoryId,
-
                 status: data.status,
                 createdByRole: data.createdByRole,
                 createdByName: data.createdByName
             };
+
+            // Tambahkan categoryId hanya untuk non-transfer
+            if (data.type !== 'transfer' && data.categoryId) {
+                payload.categoryId = data.categoryId;
+            }
+
+            // Tambahkan toAccountId untuk transfer
+            if (data.type === 'transfer' && (data as any).toAccountId) {
+                payload.toAccountId = (data as any).toAccountId;
+            }
 
             // Pake PUT buat update
             const response = await api.put(`/transactions/${id}`, payload);
