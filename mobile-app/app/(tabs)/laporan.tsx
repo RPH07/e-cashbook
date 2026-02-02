@@ -72,10 +72,11 @@ export default function LaporanScreen() {
     let expense = 0;
     const expenseByCategory: Record<string, number> = {};
 
-    // 2. Loop semua transaksi buat dipilah-pilah
     transactions.forEach(t => {
       if(t.status !== 'approved') return;
       const tDate = new Date(t.date);
+
+      if (t.type === 'transfer') return;
 
       // Kalo transaksinya SEBELUM tanggal awal -> Masuk ke Saldo Awal
       if (tDate < startDate) {
