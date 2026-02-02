@@ -40,6 +40,14 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="transfer" 
+        options={{
+          title: 'Transfer',
+          tabBarIcon: ({ color }) => <Ionicons name="swap-horizontal" size={24} color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
         name="laporan" 
         options={{
           title: 'Laporan',
