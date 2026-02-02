@@ -1,20 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { transactionService } from '@/services/transactionService';
+import {reportService} from '@/services/api';
 
 export type UserRole = 'admin' | 'finance' | 'staff' | 'auditor' | 'viewer';
 
 export interface Transaction {
+  // imageUri: string | null | undefined;
   id: string;
-  type: 'pemasukan' | 'pengeluaran';
+  type: 'pemasukan' | 'pengeluaran' | 'income' | 'expense' | 'transfer';
   amount: number;
   category: string; 
   date: string;
   note?: string;
   account: string;  
   proofLink?: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'waiting_approval_a' | 'void';
   createdByRole: UserRole;
   createdByName: string;
 }
@@ -57,7 +60,7 @@ interface TransactionContextType {
 
   setUserRole: (role: UserRole) => void;
   setUserName: (name: string) => void;
-  recordLog: (action: string, target: string, details: string) => void;
+  recordLog: (action: string, target: string, details: string, actorName?: string, actorRole?: string) => void;
   refreshTransactions: () => Promise<void>;
 }
 
@@ -77,20 +80,21 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         const storedRole = await SecureStore.getItemAsync('userRole');
         const storedName = await SecureStore.getItemAsync('userName');
         const token = await SecureStore.getItemAsync('userToken');
+        const savedLogs = await AsyncStorage.getItem('auditLogs'); 
 
         if (storedRole) setUserRoleState(storedRole as UserRole);
         if (storedName) setUserNameState(storedName);
+        if (savedLogs) {
+          try {
+            setLogs(JSON.parse(savedLogs));
+          } catch (e) {
+            console.log('Failed to parse saved logs');
+          }
+        }
 
         // Hanya load transaksi jika token ada 
         if (token) {
-          const apiData = await transactionService.getAll();
-          const mappedData = apiData.map((t: any) => ({
-            ...t,
-            id: String(t.id),
-            note: t.description || t.note || '',
-            proofLink: t.evidence_link || t.proofLink || null
-          }));
-          setTransactions(mappedData as any);
+          await refreshTransactions();
         }
 
       } catch (error) {
@@ -110,17 +114,25 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     await SecureStore.setItemAsync('userName', name);
   };
 
-  const recordLog = (action: string, target: string, details: string) => {
+  const recordLog = async (action: string, target: string, details: string, customName?: string, customRole?: string) => {
     const newLog: AuditLog = {
       id: Date.now().toString(),
       actionType: action,
-      actorName: userName,
-      actorRole: userRole,
+      actorName: customName || userName, 
+      actorRole: customRole || userRole as string,
       target,
       details,
       timestamp: new Date().toISOString()
     };
-    setLogs(prev => [newLog, ...prev]);
+    
+    const updatedLogs = [newLog, ...logs].slice(0, 200);
+    setLogs(updatedLogs);
+    
+    try {
+      await AsyncStorage.setItem('auditLogs', JSON.stringify(updatedLogs));
+    } catch (error) {
+      console.log('Failed to save logs to storage:', error);
+    }
   };
 
   const addTransaction = async (input: CreateTransactionInput) => {
@@ -211,18 +223,20 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
   const approveTransaction = async (id: string) => {
     try {
       await transactionService.approve(id);
-      setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'approved' } : t)));
+      await refreshTransactions();
+      // setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'approved' } : t)));
       recordLog('APPROVE', `Ref: ${id.substring(0, 6)}`, 'Transaksi disetujui');
     } catch (e) { 
       console.error('gagal approve', e)
-      Alert.alert("Gagal approve"); 
+      Alert.alert("Gagal Memproses transaksi"); 
     }
   };
 
   const rejectTransaction = async (id: string) => {
     try {
       await transactionService.reject(id);
-      setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'rejected' } : t)));
+      await refreshTransactions();
+      // setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'rejected' } : t)));
       recordLog('REJECT', `Ref: ${id.substring(0, 6)}`, 'Transaksi ditolak');
     } catch (e) {
       console.error('gagal reject', e)
@@ -240,6 +254,33 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         proofLink: t.evidence_link || t.proofLink || null
       }));
       setTransactions(mappedData as any);
+      try {
+        const logsData = await reportService.getAuditLogs();
+        // Fix mapping: backend return { action, details, user: {name, role}, createdAt }
+        const mappedLogs = logsData.map((log: any) => ({
+          id: String(log.id),
+          actionType: log.action || 'UNKNOWN',
+          actorName: log.user?.name || 'System',
+          actorRole: log.user?.role || 'system',
+          target: log.action?.includes('Transaksi') ? 'Transaksi' : 'System',
+          details: log.details || '',
+          timestamp: log.createdAt || new Date().toISOString()
+        }));
+        // Limit to max 200 logs
+        const limitedLogs = mappedLogs.slice(0, 200);
+        setLogs(limitedLogs);
+        // Simpan ke AsyncStorage (unlimited, safe for large data)
+        await AsyncStorage.setItem('auditLogs', JSON.stringify(limitedLogs));
+      } catch (error) {
+        // console.log("User ini gak punya akses liat log ", error);
+        // Load from local storage if API fails
+        try {
+          const savedLogs = await AsyncStorage.getItem('auditLogs');
+          if (savedLogs) setLogs(JSON.parse(savedLogs));
+        } catch (e) {
+          console.log('No cached logs');
+        }
+      }
     } catch (error) {
       console.error("Gagal refresh transaksi:", error);
     }
