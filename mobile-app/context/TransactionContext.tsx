@@ -16,6 +16,7 @@ export interface Transaction {
   date: string;
   note?: string;
   account: string;  
+  toAccount?: string; // Untuk transfer
   proofLink?: string | null;
   status: 'pending' | 'approved' | 'rejected' | 'waiting_approval_a' | 'void';
   createdByRole: UserRole;
@@ -23,7 +24,7 @@ export interface Transaction {
 }
 
 export interface CreateTransactionInput {
-  type: 'pemasukan' | 'pengeluaran';
+  type: 'pemasukan' | 'pengeluaran' | 'transfer';
   amount: number;
   date: string;
   note: string;
@@ -32,8 +33,11 @@ export interface CreateTransactionInput {
   accountId: number;  
   accountName: string;  
 
-  categoryId: number; 
-  categoryName: string;
+  categoryId?: number; // Optional untuk transfer
+  categoryName?: string;
+  
+  toAccountId?: number; // Untuk transfer
+  toAccountName?: string;
 }
 
 interface AuditLog {
@@ -139,40 +143,53 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     try {
       const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
 
-      const response = await transactionService.create({
+      const payload: any = {
         type: input.type,
         amount: input.amount,
         date: input.date,
         note: input.note,
-
         accountId: input.accountId,
-        categoryId: input.categoryId, 
-
         proofLink: input.proofLink,
         status: statusAwal,
         createdByRole: userRole,
         createdByName: userName
-      });
-
-      const newTxForUI: Transaction = {
-        id: String(response.id), 
-
-        type: input.type,
-        amount: input.amount,
-        date: input.date,
-        note: input.note,
-
-        account: response.account?.account_name || input.accountName,   
-        category: response.category?.name || input.categoryName, 
-
-        proofLink: input.proofLink,
-        status: response.status || statusAwal,
-        createdByRole: response.user?.role || userRole,
-        createdByName: response.user?.name || userName
       };
 
-      setTransactions((prev) => [newTxForUI, ...prev]);
-      recordLog('CREATE', `Ref: ${newTxForUI.id.substring(0, 6)}`, `Input Rp${input.amount}`);
+      // Untuk transfer, tambahkan toAccountId
+      if (input.type === 'transfer' && input.toAccountId) {
+        payload.toAccountId = input.toAccountId;
+      } else {
+        // Untuk non-transfer, categoryId wajib
+        payload.categoryId = input.categoryId;
+      }
+
+      const response = await transactionService.create(payload);
+
+      // Untuk transfer, refresh dari backend karena perlu data toAccount
+      if (input.type === 'transfer') {
+        await refreshTransactions();
+      } else {
+        // Untuk non-transfer, langsung update state
+        const newTxForUI: Transaction = {
+          id: String(response.id), 
+          type: input.type,
+          amount: input.amount,
+          date: input.date,
+          note: input.note,
+          account: response.account?.account_name || input.accountName,   
+          category: response.category?.name || input.categoryName || 'Transfer', 
+          toAccount: response.toAccount?.account_name || input.toAccountName,
+          proofLink: input.proofLink,
+          status: response.status || statusAwal,
+          createdByRole: response.user?.role || userRole,
+          createdByName: response.user?.name || userName
+        };
+
+        setTransactions((prev) => [newTxForUI, ...prev]);
+      }
+      
+      const actionLabel = input.type === 'transfer' ? 'Transfer' : 'Input';
+      recordLog('CREATE', `Ref: ${String(response.id).substring(0, 6)}`, `${actionLabel} Rp${input.amount}`);
 
     } catch (error) {
       console.error("Error di Context:", error);
@@ -184,18 +201,27 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     try {
       const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
 
-      await transactionService.update(id, {
+      const payload: any = {
         type: input.type,
         amount: input.amount,
         date: input.date,
         note: input.note,
         accountId: input.accountId,     
-        categoryId: input.categoryId,  
         proofLink: input.proofLink,
         status: statusAwal,
         createdByRole: userRole,
         createdByName: userName
-      });
+      };
+
+      // Untuk transfer, tambahkan toAccountId
+      if (input.type === 'transfer' && input.toAccountId) {
+        payload.toAccountId = input.toAccountId;
+      } else {
+        // Untuk non-transfer, categoryId wajib
+        payload.categoryId = input.categoryId;
+      }
+
+      await transactionService.update(id, payload);
 
       // Refresh dari backend untuk memastikan data terbaru
       const updatedTransactions = await transactionService.getAll();
@@ -251,7 +277,8 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         ...t,
         id: String(t.id),
         note: t.description || t.note || '',
-        proofLink: t.evidence_link || t.proofLink || null
+        proofLink: t.evidence_link || t.proofLink || null,
+        toAccount: t.toAccount || undefined
       }));
       setTransactions(mappedData as any);
       try {
