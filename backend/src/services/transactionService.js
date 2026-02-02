@@ -40,61 +40,90 @@ class TransactionService {
         }
     }
 
-    static async approveTransaction(transactionId, approverId) {
+    static async approveTransaction(transactionId, approverId, userRole) {
         const t = await sequelize.transaction();
         try {
             // Mencari Transaksi yang akan disetujui
             const transaction = await Transaction.findByPk(transactionId, {transaction: t});
             if (!transaction) throw new Error('Transaksi Tidak Ditemukan');
-            if (transaction.status !== 'pending') throw new Error('Hanya transaksi dengan status pending yang dapat disetujui');
 
-
-            // Mencari account terkait
-            const account = await Account.findByPk(transaction.accountId, {transaction: t});
-            if (!account) throw new Error('Akun Tidak Ditemukan');
-
-            // Menghitung saldo baru berdasarkan tipe transaksi
-            const amount = parseFloat(transaction.amount);
-            let balanceBefore = parseFloat(account.balance);
-            let balanceAfter;
-
-            if (transaction.type === 'income') {
-                balanceAfter = balanceBefore + amount;
-            } else if (transaction.type === 'expense') {
-                balanceAfter = balanceBefore - amount;
-            } else if (transaction.type === 'transfer') {
-
-                // Validasi saldo cukup untuk transfer 
-                if(balanceBefore < amount) throw new Error('Saldo tidak mencukupi untuk transfer');
-                balanceAfter = balanceBefore - amount; 
-
-                // Validasi dan update saldo akun tujuan
-                const toAccount = await Account.findByPk(transaction.toAccountId, {transaction: t});
-                if (!toAccount) throw new Error('Akun Tujuan Tidak Ditemukan');
-
-                // Memperbarui saldo akun tujuan
-                await toAccount.update({
-                    balance: parseFloat(toAccount.balance) + amount
-                }, {transaction: t});
+            // Validasi Transaksi yang sudah ditolak atau dibatalkan
+            if (transaction.status === 'rejected') {
+                throw new Error(`Transaksi dengan status ${transaction.status} tidak dapat disetujui`);
             }
 
-            // Memperbarui saldo akun utama
-            await account.update({balance: balanceAfter}, {transaction: t});
+            let nextStatus = transaction.status;
+
+            // Logika hierarki approve
+            if (userRole === 'finance'){
+                if (transaction.status !== 'pending') throw new Error('Hanya transaksi dengan status pending yang dapat disetujui');
+
+                if (transaction.type === 'income') {
+                    nextStatus = 'approved';
+                } else {
+                    nextStatus = 'waiting_approval_a';
+                }
+            }
+            else if (userRole === 'admin'){
+                if (transaction.status !== 'waiting_approval_a') throw new Error ('Hanya transaksi yang sudah disetujui finance yang dapat disetujui');
+                nextStatus = 'approved';
+            } else {
+                throw new Error ('Role anda tidak memiliki izin untuk menyetujui transaksi');
+            }
+
+            // Menghitung saldo hanya jika status menjadi approved final
+            let balanceBefore = parseFloat(transaction.balance_before);
+            let balanceAfter = parseFloat(transaction.balance_after);
+
+            if (nextStatus === 'approved') {
+                const account = await Account.findByPk(transaction.accountId, {
+                    transaction: t, 
+                    lock: t.LOCK.UPDATE
+                });
+
+                if (!account) throw new Error ('Akun utama tidak ditemukan');
+
+                const amount = parseFloat(transaction.amount);
+                balanceBefore = parseFloat(account.balance);
+
+                if (transaction.type === 'income') {
+                    balanceAfter = balanceBefore + amount;
+                } else {
+                    if (balanceBefore < amount) throw new Error ('Saldo Tidak Mencukupi');
+                    balanceAfter = balanceBefore - amount;
+
+                    if (transaction.type === 'transfer'){
+                        const toAccount = await Account.findByPk(transaction.toAccountId, {
+                            transaction: t,
+                            lock: t.LOCK.UPDATE
+                        });
+
+                        if (!toAccount) throw new Error ('Akun Tujuan Tidak ditemukan');
+                        await toAccount.update({
+                            balance: parseFloat(toAccount.balance) + amount
+                        }, {transaction: t})
+                    }
+                }
+                
+                // Memperbarui saldo akun utama
+                await account.update({balance: balanceAfter}, {transaction: t});
+            }
+
 
             // Memperbarui saldo akun
             await transaction.update({
-                status: 'approved',
+                status: nextStatus,
                 balance_before: balanceBefore,
                 balance_after: balanceAfter,
                 approvedBy: approverId
             }, {transaction: t});
 
             // Mencatat log audit
-            await AuditLogService.record(approverId, 'APPROVE_TRANSACTION', `Menyetujui transaksi ID ${transaction.reference_id} sebesar ${transaction.amount}`);
+            await AuditLogService.record(approverId, 'APPROVE_TRANSACTION', `Menyetujui transaksi ID ${transaction.reference_id}. Status sekarang: ${nextStatus}`);
 
             // Commit transaksi
             await t.commit();
-            return {message: 'Transaksi berhasil disetujui', balanceAfter};
+            return {message: `Berhasil! Status Sekarang ${nextStatus}`, nextStatus};
 
         } catch (error) {
             await t.rollback();
@@ -102,22 +131,34 @@ class TransactionService {
         }
     }
 
-    static async rejectTransaction(transactionId, approverId) {
+    static async rejectTransaction(transactionId, approverId, userRole) {
+        const t = await sequelize.transaction();
         try {
-            const transaction = await Transaction.findByPk(transactionId);
+            const transaction = await Transaction.findByPk(transactionId, {transaction: t});
             if(!transaction) throw new Error('Transaksi Tidak Ditemukan');
-            if(transaction.status !== 'pending') throw new Error('Hanya transaksi dengan status pending yang dapat ditolak');
+
+            if(transaction.status === 'approved') throw new Error ('Transaksi Sudah Final, hanya bisa dibatalkan');
+
+            if (userRole === 'finance'){
+                if(transaction.status !== 'pending') throw new Error ('Manager hanya bisa menolak transaksi berstatus pending')
+            }else if (userRole === 'admin'){
+                if(transaction.status !== 'waiting_approval_a') throw new Error ('Direktur hanya bisa menolak transaksi yang sudah disetujui oleh manager')
+            }else {
+                throw new Error ('Anda tidak memiliki izin untuk menolak transaksi');
+            }
 
             await transaction.update({
                 status: 'rejected',
                 approvedBy: approverId
-            })
+            }, {transaction: t})
 
             // Mencatat log audit
-            await AuditLogService.record(approverId, 'REJECT_TRANSACTION', `Menolak transaksi ID ${transaction.reference_id} sebesar ${transaction.amount}`);
+            await AuditLogService.record(approverId, 'REJECT_TRANSACTION', `Transaksi ${transaction.reference_id} ditolak oleh ${userRole}, status: 'rejected'`);
 
+            await t.commit();
             return {message: 'Transaksi telah ditolak'};
         } catch (error) {
+            await t.rollback();
             throw error;
         }
     }
@@ -186,6 +227,9 @@ class TransactionService {
                 throw new Error(`Transaksi dengan status ${transaction.status} tidak dapat diubah`);
             }
 
+            // Jika sudah approved maka tidak bisa diedit
+            if (transaction.status === 'approved') throw new Error ('Transaksi yang sudah disetujui tidak dapat diubah, Silahkan dibatalkan jika ingin');
+
             const allowedUpdates = {
                 amount: data.amount || transaction.amount,
                 date: data.date || transaction.date,
@@ -253,7 +297,7 @@ class TransactionService {
                     {model: Category, as: 'category', attributes: ['name', 'type']},
                     {model: User, as: 'user', attributes: ['name', 'role']}
                 ],
-                order: [['date', 'DESC']]
+                order: [['date', 'DESC'], ['created_at', 'DESC']]
 
             })
 
@@ -263,36 +307,15 @@ class TransactionService {
     }
 
     // Membuat fungsi untuk menghapus transaksi
-    static async deleteTransaction(id, userId) {
+    static async deleteTransaction(id, userId, userRole) {
         const t = await sequelize.transaction();
         try {
-            const transaction = await Transaction.findOne({ where: { id, userId } , transaction: t});
+            const whereCondition = (userRole === 'admin') ? { id } : { id, userId };
+            const transaction = await Transaction.findOne({ where: whereCondition , transaction: t});
+
             if (!transaction) throw new Error('Transaksi Tidak Ditemukan');
-            const amount = parseFloat(transaction.amount);
 
-            if (transaction.status === 'approved'){
-                const account = await Account.findByPk(transaction.accountId, {transaction: t});
-                if (account){
-                    let newBalance = parseFloat(account.balance);
-
-                    // Mengembalikan saldo berdasarkan tipe transaksi
-                    if (transaction.type === 'income') {
-                        newBalance -= amount;
-                    }else {
-                        newBalance += amount;
-                    }
-                    await account.update({balance: newBalance}, {transaction: t});
-                }
-
-                if (transaction.type === 'transfer' && transaction.toAccountId) {
-                    const targetAccount = await Account.findByPk(transaction.toAccountId, {transaction: t});
-                    if (targetAccount) {
-                        let newTargetBalance = parseFloat(targetAccount.balance) - amount;
-                        await targetAccount.update({balance: newTargetBalance}, {transaction: t});
-                    }
-                }
-            }
-
+            if (transaction.status === 'approved') throw new Error ('Transaksi sudah approved tidak boleh dihapus.');
 
             // Mencatat log audit
             await AuditLogService.record(userId, 'DELETE_TRANSACTION', `Menghapus transaksi ID ${transaction.reference_id} (Status: ${transaction.status}) `);
@@ -301,7 +324,7 @@ class TransactionService {
             await transaction.destroy({transaction: t});
 
             await t.commit();
-            return {message: "Transaksi berhasil dihapus dan saldo berhasil diperbarui"};
+            return {message: "Transaksi berhasil dihapus"};
 
         }catch (error) {
             await t.rollback();
