@@ -58,6 +58,7 @@ interface TransactionContextType {
   setUserRole: (role: UserRole) => void;
   setUserName: (name: string) => void;
   recordLog: (action: string, target: string, details: string) => void;
+  refreshTransactions: () => Promise<void>;
 }
 
 const TransactionContext = createContext<TransactionContextType | undefined>(undefined);
@@ -75,19 +76,22 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
       try {
         const storedRole = await SecureStore.getItemAsync('userRole');
         const storedName = await SecureStore.getItemAsync('userName');
+        const token = await SecureStore.getItemAsync('userToken');
 
         if (storedRole) setUserRoleState(storedRole as UserRole);
         if (storedName) setUserNameState(storedName);
 
-        // Load Transaksi dari Backend
-        const apiData = await transactionService.getAll();
-        const mappedData = apiData.map((t: any) => ({
-          ...t,
-          id: String(t.id),
-          note: t.description || t.note || '',
-          proofLink: t.evidence_link || t.proofLink || null
-        }));
-        setTransactions(mappedData as any);
+        // Hanya load transaksi jika token ada 
+        if (token) {
+          const apiData = await transactionService.getAll();
+          const mappedData = apiData.map((t: any) => ({
+            ...t,
+            id: String(t.id),
+            note: t.description || t.note || '',
+            proofLink: t.evidence_link || t.proofLink || null
+          }));
+          setTransactions(mappedData as any);
+        }
 
       } catch (error) {
         console.error("Gagal load data context:", error);
@@ -226,12 +230,27 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const refreshTransactions = async () => {
+    try {
+      const apiData = await transactionService.getAll();
+      const mappedData = apiData.map((t: any) => ({
+        ...t,
+        id: String(t.id),
+        note: t.description || t.note || '',
+        proofLink: t.evidence_link || t.proofLink || null
+      }));
+      setTransactions(mappedData as any);
+    } catch (error) {
+      console.error("Gagal refresh transaksi:", error);
+    }
+  };
+
   return (
     <TransactionContext.Provider value={{
       transactions, userRole, userName, logs,
       addTransaction, updateTransaction, deleteTransaction,
       approveTransaction, rejectTransaction,
-      setUserRole, setUserName, recordLog
+      setUserRole, setUserName, recordLog, refreshTransactions
     }}>
       {children}
     </TransactionContext.Provider>
