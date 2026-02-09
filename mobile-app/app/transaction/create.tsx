@@ -5,13 +5,25 @@ import {
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
 import FloatingInput from '@/components/FloatingInput';
-import { useTransaction, Transaction } from '../../context/TransactionContext';
+import { useTransaction } from '../../context/TransactionContext';
 import { transactionService } from '@/services/transactionService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TransactionType = 'pemasukan' | 'pengeluaran' | 'transfer';
+
+// Helper: Format Angka jadi Rupiah (String tampilan)
+const formatCurrency = (value: string) => {
+    if (!value) return '';
+    // Hapus semua karakter non-angka
+    const cleanValue = value.replace(/\D/g, '');
+    // Format jadi ribuan (pake titik)
+    return cleanValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+
+const parseCurrency = (value: string) => {
+    return parseFloat(value.replace(/\./g, '').replace(/,/g, '.')) || 0;
+};
 
 export default function CreateTransaction() {
     const insets = useSafeAreaInsets();
@@ -24,7 +36,10 @@ export default function CreateTransaction() {
     const [type, setType] = useState<TransactionType>('pengeluaran');
     const [date, setDate] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [amount, setAmount] = useState('');
+    
+    // State amount tetep string biar bisa nampung titik
+    const [amount, setAmount] = useState(''); 
+    
     const [note, setNote] = useState('');
 
     const [accounts, setAccounts] = useState<any[]>([]);
@@ -57,20 +72,9 @@ export default function CreateTransaction() {
 
     useEffect(() => {
         if (isEditMode && accounts.length > 0 && categories.length > 0) {
-            // console.log('=== Edit Mode Debug ===');
-            // console.log('Edit ID (from params):', editId, 'Type:', typeof editId);
-            // console.log('Transactions in context:', transactions.length, 'items');
-            // console.log('Transaction IDs:', transactions.map(t => ({ id: t.id, type: typeof t.id })));
-            
             const txToEdit = transactions.find(t => String(t.id) === String(editId));
 
             if (txToEdit) {
-                // console.log('=== Loading Edit Data ===');
-                // console.log('Transaction:', txToEdit);
-                // console.log('Available accounts:', accounts);
-                // console.log('Available categories:', categories);
-                
-                // Map backend type to frontend type
                 const mappedType: TransactionType = 
                     txToEdit.type === 'income' ? 'pemasukan' : 
                     txToEdit.type === 'expense' ? 'pengeluaran' :
@@ -78,45 +82,27 @@ export default function CreateTransaction() {
                     txToEdit.type as TransactionType;
                 setType(mappedType);
                 setDate(new Date(txToEdit.date));
-                setAmount(txToEdit.amount.toString());
                 
-                // Handle field mapping: backend uses 'description' and 'evidence_link'
-                // Frontend uses 'note' and 'proofLink'
+                setAmount(formatCurrency(txToEdit.amount.toString()));
+                
                 const noteValue = (txToEdit as any).note || (txToEdit as any).description || '';
                 const proofValue = (txToEdit as any).proofLink || (txToEdit as any).evidence_link || '';
                 
                 setNote(noteValue);
                 setProofLink(proofValue);
 
-                // Account bisa punya field: account_name, name, atau account
                 const foundAccount = accounts.find(a => 
                     a.account_name === txToEdit.account || 
                     a.name === txToEdit.account
                 );
                 if (foundAccount) {
-                    // console.log('Found account:', foundAccount);
                     setSelectedAccountId(foundAccount.id);
-                } else {
-                    console.log('Account not found for:', txToEdit.account);
                 }
 
-                // Category bisa punya field: name
                 const foundCategory = categories.find(c => c.name === txToEdit.category);
                 if (foundCategory) {
-                    // console.log('Found category:', foundCategory);
                     setSelectedCategoryId(foundCategory.id);
-                } else {
-                    console.log(' Category not found for:', txToEdit.category);
                 }
-                
-                // console.log('=== Loaded Values ===');
-                // console.log('Type:', txToEdit.type);
-                // console.log('Amount:', txToEdit.amount.toString());
-                // console.log('Note:', noteValue);
-                // console.log('ProofLink:', proofValue);
-            } else {
-                console.log('Transaction not found with ID:', editId);
-                console.log('Available transactions:', transactions);
             }
         }
     }, [editId, transactions, accounts, categories, isEditMode]);
@@ -134,28 +120,15 @@ export default function CreateTransaction() {
         if (selectedDate) setDate(selectedDate);
     };
 
-    // const pickImage = async () => {
-    //     // Request Permission dulu
-    //     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    //     if (status !== 'granted') {
-    //         Alert.alert('Maaf', 'Kami butuh izin akses galeri buat upload struk!', [{ text: 'Oke' }]);
-    //         return;
-    //     }
-    //     let result = await ImagePicker.launchImageLibraryAsync({
-    //         mediaTypes: ['images'],
-    //         allowsEditing: true,
-    //         aspect: [4, 3],
-    //         quality: 0.5,
-    //     });
-    //     if (!result.canceled) {
-    //         setImage(result.assets[0].uri);
-    //     }
-    // };
+    const handleAmountChange = (text: string) => {
+        setAmount(formatCurrency(text));
+    };
 
     const handleSave = async () => {
-        // Validasi berbeda untuk transfer vs non-transfer
+        const numericAmount = parseCurrency(amount);
+
         if (type === 'transfer') {
-            if (!amount || !selectedAccountId || !selectedToAccountId) {
+            if (!numericAmount || !selectedAccountId || !selectedToAccountId) {
                 Alert.alert("Eits!", "Nominal, Akun Sumber, dan Akun Tujuan wajib diisi untuk transfer!");
                 return;
             }
@@ -164,7 +137,7 @@ export default function CreateTransaction() {
                 return;
             }
         } else {
-            if (!amount || !selectedAccountId || !selectedCategoryId) {
+            if (!numericAmount || !selectedAccountId || !selectedCategoryId) {
                 Alert.alert("Eits!", "Nominal, Akun, dan Kategori wajib dipilih ya!");
                 return;
             }
@@ -178,7 +151,7 @@ export default function CreateTransaction() {
 
             const payload: any = {
                 type: type,
-                amount: parseFloat(amount),
+                amount: numericAmount,
                 date: date.toISOString(),
                 note: note,
                 proofLink: proofLink,
@@ -186,13 +159,11 @@ export default function CreateTransaction() {
                 accountName: selectedAccountObj?.account_name || 'Unknown',
             };
 
-            // Tambahkan categoryId hanya untuk non-transfer
             if (type !== 'transfer') {
                 payload.categoryId = selectedCategoryId!;
                 payload.categoryName = selectedCategoryObj?.name || 'Unknown';
             }
 
-            // Tambahkan toAccountId hanya untuk transfer
             if (type === 'transfer') {
                 payload.toAccountId = selectedToAccountId!;
                 payload.toAccountName = selectedToAccountObj?.account_name || 'Unknown';
@@ -203,7 +174,6 @@ export default function CreateTransaction() {
                 Alert.alert("Berhasil", "Data transaksi berhasil diperbarui!");
             } else {
                 await addTransaction(payload);
-
                 if (userRole === 'staff') {
                     Alert.alert("Terkirim!", "Transaksi masuk antrian approval.");
                 } else {
@@ -264,7 +234,13 @@ export default function CreateTransaction() {
                     </TouchableOpacity>
                     {showDatePicker && <DateTimePicker value={date} mode="date" onChange={handleDateChange} />}
 
-                    <FloatingInput label="Nominal (Rp)" value={amount} onChangeText={setAmount} keyboardType="numeric" style={{ marginTop: 20 }} />
+                    <FloatingInput 
+                        label="Nominal (Rp)" 
+                        value={amount} 
+                        onChangeText={handleAmountChange} 
+                        keyboardType="numeric" 
+                        style={{ marginTop: 20 }} 
+                    />
 
                     <Text style={styles.label}>{type === 'transfer' ? 'Akun Sumber' : 'Sumber Dana / Akun'}</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
@@ -289,7 +265,6 @@ export default function CreateTransaction() {
                         </View>
                     </ScrollView>
 
-                    {/* Tampilkan Akun Tujuan hanya untuk Transfer */}
                     {type === 'transfer' && (
                         <>
                             <Text style={styles.label}>Akun Tujuan</Text>
@@ -301,7 +276,7 @@ export default function CreateTransaction() {
                                             style={[
                                                 styles.pill,
                                                 selectedToAccountId === acc.id && { backgroundColor: themeColor, borderColor: themeColor },
-                                                selectedAccountId === acc.id && { opacity: 0.5 } // Disable akun sumber
+                                                selectedAccountId === acc.id && { opacity: 0.5 }
                                             ]}
                                             onPress={() => {
                                                 if (acc.id !== selectedAccountId) {
@@ -323,7 +298,6 @@ export default function CreateTransaction() {
                         </>
                     )}
 
-                    {/* Tampilkan Kategori hanya untuk non-Transfer */}
                     {type !== 'transfer' && (
                         <>
                             <Text style={styles.label}>Kategori</Text>
@@ -358,17 +332,6 @@ export default function CreateTransaction() {
                         onChangeText={setProofLink}
                         style={{ marginBottom: 20 }}
                     />
-                    {/* <Text style={styles.label}>Bukti Transaksi</Text>
-                    <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
-                        {image ? (
-                            <Image source={{ uri: image }} style={styles.previewImage} />
-                        ) : (
-                            <>
-                                <Ionicons name="camera-outline" size={32} color="#aaa" />
-                                <Text style={{ color: '#aaa', marginTop: 5 }}>Tap untuk upload foto</Text>
-                            </>
-                        )}
-                    </TouchableOpacity> */}
 
                     <FloatingInput label="Catatan Tambahan" value={note} onChangeText={setNote} multiline numberOfLines={3} style={{ height: 100, marginTop: 20 }} />
                 </View>
