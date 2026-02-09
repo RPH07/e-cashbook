@@ -240,9 +240,11 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
       await transactionService.delete(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
       recordLog('DELETE', `Ref: ${id.substring(0, 6)}`, 'Hapus data');
-    } catch (e) { 
-      console.error('gagal hapus', e)
-      Alert.alert("Gagal hapus"); 
+      Alert.alert("Sukses", "Transaksi berhasil dihapus");
+    } catch (e: any) { 
+      const errorMessage = e.message || "Gagal menghapus transaksi";
+      console.error('Gagal hapus:', errorMessage);
+      Alert.alert("Gagal Hapus", errorMessage); 
     }
   };
 
