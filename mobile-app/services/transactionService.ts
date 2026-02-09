@@ -144,6 +144,16 @@ export const transactionService = {
         }
     },
 
+    void: async (id: string) => {
+        try {
+            const response = await api.patch(`/transactions/${id}/void`);
+            return response.data.data;
+        } catch (error: any) {
+            console.error("Gagal void transaksi:", error.response?.data || error.message);
+            throw error;
+        }
+    },
+
     approve: async (id: string): Promise<void> => {
         try {
             await api.patch(`/transactions/${id}/approve`);
