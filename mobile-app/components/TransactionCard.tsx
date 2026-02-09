@@ -52,9 +52,7 @@ const TransactionCard: React.FC<Props> = ({ transaction, onPress }) => {
     }
 
 
-    const formattedAmount = new Intl.NumberFormat('id-ID', {
-        style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-    }).format(transaction.amount);
+    const formattedAmount = `Rp${new Intl.NumberFormat('id-ID').format(transaction.amount)}`;
 
     const formattedDate = new Date(transaction.date).toLocaleDateString('id-ID', {
         day: 'numeric', month: 'short', year: 'numeric'
