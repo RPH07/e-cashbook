@@ -22,7 +22,27 @@ api.interceptors.request.use(
     async (config) => {
         try {
             const token = await SecureStore.getItemAsync('userToken');
-            // console.log("Interceptor Token:", token ? "Token Ada" : "Token KOSONG");
+            const loginTimestamp = await SecureStore.getItemAsync('loginTimestamp');
+            
+            if (token && loginTimestamp) {
+                const tokenAge = Date.now() - parseInt(loginTimestamp);
+                const TOKEN_EXPIRY = 24 * 60 * 60 * 1000;
+                
+                if (tokenAge >= TOKEN_EXPIRY) {
+                    console.log("Token expired, clearing storage...");
+                    await SecureStore.deleteItemAsync('userToken');
+                    await SecureStore.deleteItemAsync('userRole');
+                    await SecureStore.deleteItemAsync('userName');
+                    await SecureStore.deleteItemAsync('loginTimestamp');
+                    
+                    // Redirect to login
+                    const { router } = await import('expo-router');
+                    router.replace('/login');
+                    
+                    return Promise.reject(new Error('Token expired'));
+                }
+            }
+            
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -49,6 +69,7 @@ api.interceptors.response.use(
             await SecureStore.deleteItemAsync('userToken');
             await SecureStore.deleteItemAsync('userRole');
             await SecureStore.deleteItemAsync('userName');
+            await SecureStore.deleteItemAsync('loginTimestamp');
             
             // Import router dinamis untuk redirect
             const { router } = await import('expo-router');
