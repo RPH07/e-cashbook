@@ -137,9 +137,10 @@ export const transactionService = {
     delete: async (id: string): Promise<void> => {
         try {
             await api.delete(`/transactions/${id}`);
-        } catch (error) {
-            console.error("Gagal hapus transaksi:", error);
-            throw error;
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || error.message || "Gagal menghapus transaksi";
+            console.error("Gagal hapus transaksi:", errorMessage);
+            throw new Error(errorMessage);
         }
     },
 
