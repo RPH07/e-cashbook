@@ -1,7 +1,33 @@
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';  
+import { Tabs, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
+import { authService } from '@/services/authService';
 
 export default function TabLayout() {
+  const router = useRouter();
+  const appState = useRef(AppState.currentState);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      
+      const isExpired = await authService.checkAndAutoLogout();
+      if (isExpired) {
+        console.log("Token expired when returning to app, redirecting to login...");
+        router.replace('/login');
+      }
+    }
+    appState.current = nextAppState;
+  };
+
   return (
     <Tabs
       screenOptions={{
