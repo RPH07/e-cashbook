@@ -61,6 +61,7 @@ interface TransactionContextType {
   deleteTransaction: (id: string) => void;
   approveTransaction: (id: string) => void;
   rejectTransaction: (id: string) => void;
+  voidTransaction: (id: string) => Promise<void>;
 
   setUserRole: (role: UserRole) => void;
   setUserName: (name: string) => void;
@@ -272,6 +273,22 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const voidTransaction = async (id: string) => {
+        try {
+            await transactionService.void(id);
+            
+            // Update state lokal biar UI langsung berubah tanpa refresh
+            setTransactions(prev => prev.map(t => 
+                (t.id === id ? { ...t, status: 'void' } : t)
+            ));
+            
+            recordLog('VOID', `Ref: ${id.substring(0, 6)}`, 'Transaksi dibatalkan');
+        } catch (error) {
+            console.error("Context void error:", error);
+            throw error; 
+        }
+    };
+
   const refreshTransactions = async () => {
     try {
       const apiData = await transactionService.getAll();
@@ -319,7 +336,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     <TransactionContext.Provider value={{
       transactions, userRole, userName, logs,
       addTransaction, updateTransaction, deleteTransaction,
-      approveTransaction, rejectTransaction,
+      approveTransaction, rejectTransaction, voidTransaction,
       setUserRole, setUserName, recordLog, refreshTransactions
     }}>
       {children}
