@@ -105,9 +105,7 @@ const TransactionDetailModal: React.FC<Props> = ({ visible, onClose, transaction
     const isRejected = transaction.status === 'rejected';
     const isVoid = transaction.status === 'void';
 
-    const formattedAmount = new Intl.NumberFormat('id-ID', {
-        style: 'currency', currency: 'IDR', minimumFractionDigits: 0,
-    }).format(transaction.amount);
+    const formattedAmount = `Rp${new Intl.NumberFormat('id-ID').format(transaction.amount)}`;
 
     const formattedDate = new Date(transaction.date).toLocaleDateString('id-ID', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
