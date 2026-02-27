@@ -1,5 +1,5 @@
 import api from './api';
-import * as SecureStore from 'expo-secure-store';
+import {storage} from '@/services/storage';
 
 interface LoginResponse {
     message: string;
@@ -24,14 +24,14 @@ export const authService = {
 
             if (payload.token) {
                 // Save token and login timestamp
-                await SecureStore.setItemAsync('userToken', payload.token);
-                await SecureStore.setItemAsync('loginTimestamp', Date.now().toString());
+                await storage.setItemAsync('userToken', payload.token);
+                await storage.setItemAsync('loginTimestamp', Date.now().toString());
                 
                 if (payload.user?.role) {
-                    await SecureStore.setItemAsync('userRole', payload.user.role);
+                    await storage.setItemAsync('userRole', payload.user.role);
                 }
                 if (payload.user?.name) {
-                    await SecureStore.setItemAsync('userName', payload.user.name);
+                    await storage.setItemAsync('userName', payload.user.name);
                 }
             }
 
@@ -45,10 +45,10 @@ export const authService = {
 
     logout: async () => {
         try {
-            await SecureStore.deleteItemAsync('userToken');
-            await SecureStore.deleteItemAsync('userRole');
-            await SecureStore.deleteItemAsync('userName');
-            await SecureStore.deleteItemAsync('loginTimestamp');
+            await storage.deleteItemAsync('userToken');
+            await storage.deleteItemAsync('userRole');
+            await storage.deleteItemAsync('userName');
+            await storage.deleteItemAsync('loginTimestamp');
         } catch (error) {
             console.error("Logout Error:", error);
         }
@@ -56,7 +56,7 @@ export const authService = {
 
     isTokenExpired: async (): Promise<boolean> => {
         try {
-            const loginTimestamp = await SecureStore.getItemAsync('loginTimestamp');
+            const loginTimestamp = await storage.getItemAsync('loginTimestamp');
             
             if (!loginTimestamp) {
                 return true; 
