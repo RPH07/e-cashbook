@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import {storage} from '@/services/storage';
 import FloatingInput from '@/components/FloatingInput';
 import { useTransaction } from '@/context/TransactionContext';
 import { authService } from '@/services/authService';
@@ -43,7 +43,7 @@ export default function LoginScreen() {
 
   const checkloginStatus = async () => {
     try {
-      const token = await SecureStore.getItemAsync('userToken');
+      const token = await storage.getItemAsync('userToken');
       if (token) {
         router.replace('/(tabs)');
       }
