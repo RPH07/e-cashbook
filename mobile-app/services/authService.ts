@@ -38,8 +38,8 @@ export const authService = {
             return payload;
 
         } catch (error: any) {
-            console.error("Login Error:", error.response?.data || error.message);
-            throw error.response?.data?.message || "Gagal terhubung ke server";
+            const errorMsg = error.response?.data?.message || "Gagal terhubung ke server";
+            throw new Error(errorMsg);
         }
     },
 
