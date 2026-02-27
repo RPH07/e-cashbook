@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import {storage} from '@/services/storage';
 import { transactionService } from '@/services/transactionService';
 
 export type UserRole = 'admin' | 'finance' | 'staff' | 'auditor' | 'viewer';
@@ -75,9 +75,9 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const storedRole = await SecureStore.getItemAsync('userRole');
-        const storedName = await SecureStore.getItemAsync('userName');
-        const token = await SecureStore.getItemAsync('userToken');
+        const storedRole = await storage.getItemAsync('userRole');
+        const storedName = await storage.getItemAsync('userName');
+        const token = await storage.getItemAsync('userToken');
 
         if (storedRole) setUserRoleState(storedRole as UserRole);
         if (storedName) setUserNameState(storedName);
@@ -95,12 +95,12 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
 
   const setUserRole = async (role: UserRole) => {
     setUserRoleState(role);
-    await SecureStore.setItemAsync('userRole', role);
+    await storage.setItemAsync('userRole', role);
   };
 
   const setUserName = async (name: string) => {
     setUserNameState(name);
-    await SecureStore.setItemAsync('userName', name);
+    await storage.setItemAsync('userName', name);
   };
 
   const addTransaction = async (input: CreateTransactionInput) => {
