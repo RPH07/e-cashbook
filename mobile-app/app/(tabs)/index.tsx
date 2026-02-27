@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import {storage} from '@/services/storage';
 import { LineChart, PieChart } from "react-native-gifted-charts";
 import { useTransaction } from '@/context/TransactionContext';
 import { transactionService } from '@/services/transactionService';
@@ -72,9 +72,9 @@ export default function Dashboard() {
 
     const handleLogout = async () => {
         try {
-            await SecureStore.deleteItemAsync('userToken');
-            await SecureStore.deleteItemAsync('userRole');
-            await SecureStore.deleteItemAsync('userName');
+            await storage.deleteItemAsync('userToken');
+            await storage.deleteItemAsync('userRole');
+            await storage.deleteItemAsync('userName');
             if (router.canDismiss()) router.dismissAll();
             router.replace('/login');
         } catch (error) { console.error("Gagal logout:", error); }
