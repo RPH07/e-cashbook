@@ -15,7 +15,7 @@ import * as XLSX from 'xlsx';
 
 export default function LaporanScreen() {
   // Ambil data mentah dari Context
-  const { transactions, userRole, userName, recordLog } = useTransaction();
+  const { transactions, userRole, userName, } = useTransaction();
 
   // State buat nyimpen filter waktu yang lagi aktif
   const [filterMode, setFilterMode] = useState<'bulanan' | 'tahunan'>('bulanan');
@@ -335,7 +335,7 @@ export default function LaporanScreen() {
       
       await tempFile.copy(finalFile);
       
-      recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan PDF (Periode: ${periodLabel})`);
+      // recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan PDF (Periode: ${periodLabel})`);
       await Sharing.shareAsync(finalFile.uri, { 
         UTI: '.pdf', 
         mimeType: 'application/pdf'
@@ -433,7 +433,7 @@ export default function LaporanScreen() {
         await file.delete();
       }
       
-      recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan Excel (Periode: ${periodLabel})`);
+      // recordLog('EXPORT', 'Menu Laporan', `Cetak Laporan Excel (Periode: ${periodLabel})`);
       
       // Write menggunakan ArrayBuffer
       const uint8Array = new Uint8Array(wbout);
