@@ -1,14 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { transactionService } from '@/services/transactionService';
-import {reportService} from '@/services/api';
 
 export type UserRole = 'admin' | 'finance' | 'staff' | 'auditor' | 'viewer';
 
 export interface Transaction {
-  // imageUri: string | null | undefined;
   id: string;
   type: 'pemasukan' | 'pengeluaran' | 'income' | 'expense' | 'transfer';
   amount: number;
@@ -16,7 +13,7 @@ export interface Transaction {
   date: string;
   note?: string;
   account: string;  
-  toAccount?: string; // Untuk transfer
+  toAccount?: string;
   proofLink?: string | null;
   status: 'pending' | 'approved' | 'rejected' | 'waiting_approval_a' | 'void';
   createdByRole: UserRole;
@@ -29,14 +26,11 @@ export interface CreateTransactionInput {
   date: string;
   note: string;
   proofLink?: string | null;
-
   accountId: number;  
   accountName: string;  
-
-  categoryId?: number; // Optional untuk transfer
+  categoryId?: number;
   categoryName?: string;
-  
-  toAccountId?: number; // Untuk transfer
+  toAccountId?: number;
   toAccountName?: string;
 }
 
@@ -65,7 +59,6 @@ interface TransactionContextType {
 
   setUserRole: (role: UserRole) => void;
   setUserName: (name: string) => void;
-  recordLog: (action: string, target: string, details: string, actorName?: string, actorRole?: string) => void;
   refreshTransactions: () => Promise<void>;
 }
 
@@ -85,23 +78,14 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         const storedRole = await SecureStore.getItemAsync('userRole');
         const storedName = await SecureStore.getItemAsync('userName');
         const token = await SecureStore.getItemAsync('userToken');
-        const savedLogs = await AsyncStorage.getItem('auditLogs'); 
 
         if (storedRole) setUserRoleState(storedRole as UserRole);
         if (storedName) setUserNameState(storedName);
-        if (savedLogs) {
-          try {
-            setLogs(JSON.parse(savedLogs));
-          } catch (e) {
-            console.log('Failed to parse saved logs');
-          }
-        }
 
         // Hanya load transaksi jika token ada 
         if (token) {
           await refreshTransactions();
         }
-
       } catch (error) {
         console.error("Gagal load data context:", error);
       }
@@ -119,31 +103,9 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     await SecureStore.setItemAsync('userName', name);
   };
 
-  const recordLog = async (action: string, target: string, details: string, customName?: string, customRole?: string) => {
-    const newLog: AuditLog = {
-      id: Date.now().toString(),
-      actionType: action,
-      actorName: customName || userName, 
-      actorRole: customRole || userRole as string,
-      target,
-      details,
-      timestamp: new Date().toISOString()
-    };
-    
-    const updatedLogs = [newLog, ...logs].slice(0, 200);
-    setLogs(updatedLogs);
-    
-    try {
-      await AsyncStorage.setItem('auditLogs', JSON.stringify(updatedLogs));
-    } catch (error) {
-      console.log('Failed to save logs to storage:', error);
-    }
-  };
-
   const addTransaction = async (input: CreateTransactionInput) => {
     try {
       const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
-
       const payload: any = {
         type: input.type,
         amount: input.amount,
@@ -156,42 +118,14 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         createdByName: userName
       };
 
-      // Untuk transfer, tambahkan toAccountId
       if (input.type === 'transfer' && input.toAccountId) {
         payload.toAccountId = input.toAccountId;
       } else {
-        // Untuk non-transfer, categoryId wajib
         payload.categoryId = input.categoryId;
       }
 
-      const response = await transactionService.create(payload);
-
-      // Untuk transfer, refresh dari backend karena perlu data toAccount
-      if (input.type === 'transfer') {
-        await refreshTransactions();
-      } else {
-        // Untuk non-transfer, langsung update state
-        const newTxForUI: Transaction = {
-          id: String(response.id), 
-          type: input.type,
-          amount: input.amount,
-          date: input.date,
-          note: input.note,
-          account: response.account?.account_name || input.accountName,   
-          category: response.category?.name || input.categoryName || 'Transfer', 
-          toAccount: response.toAccount?.account_name || input.toAccountName,
-          proofLink: input.proofLink,
-          status: response.status || statusAwal,
-          createdByRole: response.user?.role || userRole,
-          createdByName: response.user?.name || userName
-        };
-
-        setTransactions((prev) => [newTxForUI, ...prev]);
-      }
-      
-      const actionLabel = input.type === 'transfer' ? 'Transfer' : 'Input';
-      recordLog('CREATE', `Ref: ${String(response.id).substring(0, 6)}`, `${actionLabel} Rp${input.amount}`);
-
+      await transactionService.create(payload);
+      await refreshTransactions();
     } catch (error) {
       console.error("Error di Context:", error);
       throw error; 
@@ -201,7 +135,6 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
   const updateTransaction = async (id: string, input: CreateTransactionInput) => {
     try {
       const statusAwal = userRole === 'staff' ? 'pending' : 'approved';
-
       const payload: any = {
         type: input.type,
         amount: input.amount,
@@ -214,37 +147,27 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         createdByName: userName
       };
 
-      // Untuk transfer, tambahkan toAccountId
       if (input.type === 'transfer' && input.toAccountId) {
         payload.toAccountId = input.toAccountId;
       } else {
-        // Untuk non-transfer, categoryId wajib
         payload.categoryId = input.categoryId;
       }
 
       await transactionService.update(id, payload);
-
-      // Refresh dari backend untuk memastikan data terbaru
-      const updatedTransactions = await transactionService.getAll();
-      setTransactions(updatedTransactions as any);
-
-      recordLog('UPDATE', `Ref: ${id.substring(0,6)}`, `Update data Rp${input.amount}`);
-
+      await refreshTransactions();
     } catch (error) {
       console.error("Gagal update di context:", error);
-      throw error; // Lempar error biar bisa ditangkap UI
+      throw error; 
     }
   };
 
   const deleteTransaction = async (id: string) => {
     try {
       await transactionService.delete(id);
-      setTransactions(prev => prev.filter(t => t.id !== id));
-      recordLog('DELETE', `Ref: ${id.substring(0, 6)}`, 'Hapus data');
+      await refreshTransactions();
       Alert.alert("Sukses", "Transaksi berhasil dihapus");
     } catch (e: any) { 
       const errorMessage = e.message || "Gagal menghapus transaksi";
-      console.error('Gagal hapus:', errorMessage);
       Alert.alert("Gagal Hapus", errorMessage); 
     }
   };
@@ -253,11 +176,9 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     try {
       await transactionService.approve(id);
       await refreshTransactions();
-      // setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'approved' } : t)));
-      recordLog('APPROVE', `Ref: ${id.substring(0, 6)}`, 'Transaksi disetujui');
     } catch (e) { 
-      console.error('gagal approve', e)
       Alert.alert("Gagal Memproses transaksi"); 
+      throw e;
     }
   };
 
@@ -265,32 +186,25 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
     try {
       await transactionService.reject(id);
       await refreshTransactions();
-      // setTransactions(prev => prev.map(t => (t.id === id ? { ...t, status: 'rejected' } : t)));
-      recordLog('REJECT', `Ref: ${id.substring(0, 6)}`, 'Transaksi ditolak');
     } catch (e) {
-      console.error('gagal reject', e)
-      Alert.alert("Gagal reject"); 
+      Alert.alert("Gagal reject transaksi"); 
+      throw e;
     }
   };
 
   const voidTransaction = async (id: string) => {
-        try {
-            await transactionService.void(id);
-            
-            // Update state lokal biar UI langsung berubah tanpa refresh
-            setTransactions(prev => prev.map(t => 
-                (t.id === id ? { ...t, status: 'void' } : t)
-            ));
-            
-            recordLog('VOID', `Ref: ${id.substring(0, 6)}`, 'Transaksi dibatalkan');
-        } catch (error) {
-            console.error("Context void error:", error);
-            throw error; 
-        }
-    };
+    try {
+      await transactionService.void(id);
+      await refreshTransactions();
+    } catch (error) {
+      console.error("Context void error:", error);
+      throw error; 
+    }
+  };
 
   const refreshTransactions = async () => {
     try {
+      // 1. Tarik Data Transaksi
       const apiData = await transactionService.getAll();
       const mappedData = apiData.map((t: any) => ({
         ...t,
@@ -300,32 +214,36 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
         toAccount: t.toAccount || undefined
       }));
       setTransactions(mappedData as any);
+
+      // 2. Tarik Data Audit Log dari API Ari
       try {
-        const logsData = await reportService.getAuditLogs();
-        // Fix mapping: backend return { action, details, user: {name, role}, createdAt }
-        const mappedLogs = logsData.map((log: any) => ({
-          id: String(log.id),
-          actionType: log.action || 'UNKNOWN',
-          actorName: log.user?.name || 'System',
-          actorRole: log.user?.role || 'system',
-          target: log.action?.includes('Transaksi') ? 'Transaksi' : 'System',
-          details: log.details || '',
-          timestamp: log.createdAt || new Date().toISOString()
-        }));
-        // Limit to max 200 logs
-        const limitedLogs = mappedLogs.slice(0, 200);
-        setLogs(limitedLogs);
-        // Simpan ke AsyncStorage (unlimited, safe for large data)
-        await AsyncStorage.setItem('auditLogs', JSON.stringify(limitedLogs));
+        const logsData = await transactionService.getAuditLogs();
+        const mappedLogs = logsData.map((log: any) => {
+          const rawAction = log.action || '';
+          let actionClean = '';
+          if (rawAction.includes('CREATE')) actionClean = 'CREATE';
+          else if (rawAction.includes('UPDATE')) actionClean = 'UPDATE';
+          else if (rawAction.includes('DELETE')) actionClean = 'DELETE';
+          else if (rawAction.includes('APPROVE')) actionClean = 'APPROVE';
+          else if (rawAction.includes('REJECT')) actionClean = 'REJECT';
+          else if (rawAction.includes('VOID')) actionClean = 'VOID';
+
+          const refMatch = log.details?.match(/(TRX|TRF)-\d+-\d+/);
+          const targetClean = refMatch ? refMatch[0] : 'System';
+
+          return {
+            id: String(log.id),
+            actionType: actionClean,
+            actorName: log.user?.name || 'System',
+            actorRole: log.user?.role || 'system',
+            target: targetClean,
+            details: log.details || '',
+            timestamp: log.created_at || log.createdAt || new Date().toISOString()
+          };
+        });
+        setLogs(mappedLogs.slice(0, 200));
       } catch (error) {
-        // console.log("User ini gak punya akses liat log ", error);
-        // Load from local storage if API fails
-        try {
-          const savedLogs = await AsyncStorage.getItem('auditLogs');
-          if (savedLogs) setLogs(JSON.parse(savedLogs));
-        } catch (e) {
-          console.log('No cached logs');
-        }
+        console.log("User ini mungkin gak punya akses liat log (bukan Admin/Auditor)", error);
       }
     } catch (error) {
       console.error("Gagal refresh transaksi:", error);
@@ -337,7 +255,7 @@ export const TransactionProvider = ({ children }: { children: ReactNode }) => {
       transactions, userRole, userName, logs,
       addTransaction, updateTransaction, deleteTransaction,
       approveTransaction, rejectTransaction, voidTransaction,
-      setUserRole, setUserName, recordLog, refreshTransactions
+      setUserRole, setUserName, refreshTransactions
     }}>
       {children}
     </TransactionContext.Provider>
