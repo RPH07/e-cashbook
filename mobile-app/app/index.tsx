@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import {storage} from '@/services/storage';
 
 export default function SplashScreen() {
   
@@ -13,7 +13,7 @@ export default function SplashScreen() {
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const token = await SecureStore.getItemAsync('userToken');
+      const token = await storage.getItemAsync('userToken');
       
       if (token) {
         router.replace('/(tabs)');
