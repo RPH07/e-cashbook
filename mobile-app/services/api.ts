@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = 'http://192.168.1.9:5000/api'; 
+const API_URL = 'http://192.168.1.9:8000/api';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -13,7 +13,7 @@ const api = axios.create({
 
 export const reportService = {
   getAuditLogs: async () => {
-    const response = await api.get('/report/audit-logs'); 
+    const response = await api.get('/audit-logs'); 
     return response.data.data;
   }
 };
