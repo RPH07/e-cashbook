@@ -51,6 +51,7 @@ export default function CreateTransaction() {
 
     const [proofLink, setProofLink] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     useEffect(() => {
         const loadMasterData = async () => {
@@ -127,18 +128,23 @@ export default function CreateTransaction() {
     const handleSave = async () => {
         const numericAmount = parseCurrency(amount);
 
+        if (!note.trim()) {
+            setErrorMessage("Catatan Tambahan Wajib diisi, ya!");
+            return;
+        }
+
         if (type === 'transfer') {
             if (!numericAmount || !selectedAccountId || !selectedToAccountId) {
-                Alert.alert("Eits!", "Nominal, Akun Sumber, dan Akun Tujuan wajib diisi untuk transfer!");
+                setErrorMessage("Eits!, Nominal, Akun Sumber, dan Akun Tujuan wajib diisi untuk transfer!");
                 return;
             }
             if (selectedAccountId === selectedToAccountId) {
-                Alert.alert("Eits!", "Akun Sumber dan Tujuan tidak boleh sama!");
+                setErrorMessage("Eits!, Akun Sumber dan Tujuan tidak boleh sama!");
                 return;
             }
         } else {
             if (!numericAmount || !selectedAccountId || !selectedCategoryId) {
-                Alert.alert("Eits!", "Nominal, Akun, dan Kategori wajib dipilih ya!");
+                setErrorMessage("Eits!, Nominal, Akun, dan Kategori wajib dipilih ya!");
                 return;
             }
         }
@@ -183,9 +189,10 @@ export default function CreateTransaction() {
 
             router.back();
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            Alert.alert("Gagal", "Terjadi kesalahan koneksi.");
+            const msg = error.response?.data?.message || "Terjadi kesalahan saat menyimpan data.";
+            setErrorMessage(msg);
         } finally {
             setIsLoading(false);
         }
@@ -338,6 +345,11 @@ export default function CreateTransaction() {
             </ScrollView>
 
             <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+                {errorMessage && (
+                    <Text style={{ color: 'red', marginBottom: 10, textAlign: 'center' }}>
+                        {errorMessage}
+                    </Text>
+                )}
                 <TouchableOpacity
                     style={[styles.saveButton, { backgroundColor: themeColor }]}
                     onPress={handleSave}
@@ -350,6 +362,8 @@ export default function CreateTransaction() {
                     )}
                 </TouchableOpacity>
             </View>
+
+
         </View>
     );
 }
