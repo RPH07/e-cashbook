@@ -9,7 +9,7 @@ export interface CreateTransactionDTO {
     proofLink?: string | null;
     status?: 'pending' | 'approved' | 'rejected';
     accountId: number;
-    categoryId?: number; // Optional untuk transfer
+    categoryId?: number;
     toAccountId?: number; // Untuk transfer
     createdByRole?: string;
     createdByName?: string;
@@ -193,6 +193,16 @@ export const transactionService = {
         } catch (error) {
             console.error("Gagal ambil kategori:", error);
             return [];
+        }
+    },
+
+    getAuditLogs: async() => {
+        try {
+            const response = await api.get('/audit-logs');
+            return response.data.data || [];
+        } catch (error) {
+            console.error("Gagal ambil audit log:", error);
+            throw error;
         }
     }
 };
