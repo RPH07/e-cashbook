@@ -11,6 +11,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({email: '', password: ''});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const validate = () => {
     let valid = true;
     let newErrors = {email: '', password: ''};
@@ -53,11 +55,12 @@ export default function LoginScreen() {
     }
   }
 
-const { setUserRole, setUserName, recordLog, refreshTransactions } = useTransaction();
+const { setUserRole, setUserName, refreshTransactions } = useTransaction();
 const handleLogin = async () => {
     if (!validate()) return;
 
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const data = await authService.login(email, password);
       
@@ -71,11 +74,6 @@ const handleLogin = async () => {
       // Refresh transaksi setelah login berhasil
       await refreshTransactions();
       
-      await recordLog('LOGIN', 
-          'System', 
-          `${namaDiterima} (${roleDiterima}) login ke aplikasi`,
-          namaDiterima, 
-          roleDiterima);
 
       setEmail('');
       setPassword('');
@@ -83,6 +81,8 @@ const handleLogin = async () => {
 
     } catch (error: any) {
       // console.error("Login Gagal:", error);
+      const msg = error.response?.data?.message || "Email atau Password salah!";
+      setErrorMessage(msg);
       Alert.alert("Login Gagal", typeof error === 'string' ? error : "Periksa email dan password Anda.");
     } finally {
       setIsLoading(false);
@@ -122,8 +122,20 @@ const handleLogin = async () => {
           errorText={errors.password}
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>MASUK</Text>
+        {errorMessage && (
+          <Text style={{color: 'red', marginBottom: 10, textAlign: 'center'}}>
+            {errorMessage}
+          </Text>
+        )}
+
+        <TouchableOpacity 
+          style={styles.button} 
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          <Text style={styles.buttonText}>
+            {isLoading ? 'Logging in....' : 'Login'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
