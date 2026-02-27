@@ -17,7 +17,7 @@ const TOKEN_EXPIRY_DURATION = 24 * 60 * 60 * 1000;
 export const authService = {
     login: async (email: string, password: string): Promise<LoginResponse> => {
         try {
-            const response = await api.post('/auth/login', { email, password });
+            const response = await api.post('/login', { email, password });
 
             const responseData = response.data;
             const payload = responseData.data || responseData;
