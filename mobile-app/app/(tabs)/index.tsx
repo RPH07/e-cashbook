@@ -152,7 +152,7 @@ export default function Dashboard() {
         if (logCategory === 'data') {
             return ['CREATE', 'UPDATE', 'DELETE'].includes(log.actionType);
         } else {
-            return ['LOGIN', 'EXPORT', 'APPROVE', 'REJECT'].includes(log.actionType);
+            return ['LOGIN', 'EXPORT', 'APPROVE', 'REJECT', 'VOID'].includes(log.actionType);
         }
     });
 
