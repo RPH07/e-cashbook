@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { LineChart } from "react-native-gifted-charts";
+import { LineChart, PieChart } from "react-native-gifted-charts";
 import { useTransaction } from '@/context/TransactionContext';
 import { transactionService } from '@/services/transactionService';
 
@@ -28,6 +28,9 @@ export default function Dashboard() {
     const [accounts, setAccounts] = useState<string[]>(['Semua']);
     const [selectedAccount, setSelectedAccount] = useState('Semua');
     const [period, setPeriod] = useState<'month' | 'all'>('month');
+    
+    const [currentChartIndex, setCurrentChartIndex] = useState(0);
+    const chartScrollRef = useRef<ScrollView>(null);
 
     // ANIMASI SCROLL
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -231,6 +234,37 @@ export default function Dashboard() {
 
     }, [filteredTransactions]);
 
+    const pieData = useMemo(() => {
+        if (totalIncome === 0 && totalExpense === 0) {
+            return [
+                { value: 1, color: '#e0e0e0', text: '0%' }
+            ];
+        }
+        
+        const data = [];
+        if (totalIncome > 0) {
+            data.push({
+                value: totalIncome,
+                color: '#2e7d32',
+                text: `${((totalIncome / (totalIncome + totalExpense)) * 100).toFixed(0)}%`,
+            });
+        }
+        if (totalExpense > 0) {
+            data.push({
+                value: totalExpense,
+                color: '#c62828',
+                text: `${((totalExpense / (totalIncome + totalExpense)) * 100).toFixed(0)}%`,
+            });
+        }
+        return data;
+    }, [totalIncome, totalExpense]);
+
+    const handleChartScroll = (event: any) => {
+        const offsetX = event.nativeEvent.contentOffset.x;
+        const index = Math.round(offsetX / (screenWidth - 40));
+        setCurrentChartIndex(index);
+    };
+
     const formatMoney = (val: number) => {
         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
     };
@@ -248,12 +282,6 @@ export default function Dashboard() {
             <Text style={styles.menuText}>{title}</Text>
         </TouchableOpacity>
     );
-
-    // const dataGrafik = [
-    //     { value: 15, label: 'Sen' }, { value: 30, label: 'Sel' },
-    //     { value: 26, label: 'Rab' }, { value: 40, label: 'Kam' },
-    //     { value: 25, label: 'Jum' }, { value: 10, label: 'Sab' },
-    // ];
 
     return (
         <View style={styles.container}>
@@ -359,32 +387,89 @@ export default function Dashboard() {
                 scrollEventThrottle={16}
             >
                 <View style={styles.chartContainer}>
-                    <Text style={styles.sectionTitle}>
-                        Arus Kas ({period === 'month' ? 'Bulan Ini' : 'Total'})
-                    </Text>
-                    <LineChart
-                        data={chartData}
-                        color="#1a5dab" thickness={3}
-                        dataPointsColor="#1a5dab"
-                        startFillColor="#1a5dab"
-                        endFillColor="#1a5dab"
-                        startOpacity={0.2}
-                        endOpacity={0.0}
-                        areaChart
-                        curved
-                        hideRules
-                        yAxisTextStyle={{ fontSize: 10, color: '#666' }}
-                        formatYLabel={(value) => formatCompactNumber(parseFloat(value))}
-                        xAxisThickness={0}
-                        height={120}
-                        width={screenWidth - 110}
-                        adjustToWidth={true}
-                        initialSpacing={20}
-                        endSpacing={20}
-                        spacing={55}
-                        scrollToEnd
-                        noOfSections={3}
-                    />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: 20 }}>
+                        <Text style={styles.sectionTitle}>
+                            Arus Kas ({period === 'month' ? 'Bulan Ini' : 'Total'})
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                            <View style={[styles.indicator, currentChartIndex === 0 && styles.indicatorActive]} />
+                            <View style={[styles.indicator, currentChartIndex === 1 && styles.indicatorActive]} />
+                        </View>
+                    </View>
+                    
+                    <ScrollView
+                        ref={chartScrollRef}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        onScroll={handleChartScroll}
+                        scrollEventThrottle={16}
+                    >
+                        {/* Pie Chart */}
+                        <View style={{ width: screenWidth - 40, alignItems: 'center', paddingVertical: 20 }}>
+                            <PieChart
+                                data={pieData}
+                                donut
+                                radius={80}
+                                innerRadius={50}
+                                centerLabelComponent={() => (
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333' }}>
+                                            {formatCompactNumber(totalIncome + totalExpense)}
+                                        </Text>
+                                        <Text style={{ fontSize: 10, color: '#888' }}>Total</Text>
+                                    </View>
+                                )}
+                            />
+                            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 20 }}>
+                                <View style={{ alignItems: 'center' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#2e7d32' }} />
+                                        <Text style={{ fontSize: 12, color: '#666' }}>Pemasukan</Text>
+                                    </View>
+                                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#2e7d32', marginTop: 4 }}>
+                                        {formatMoney(totalIncome)}
+                                    </Text>
+                                </View>
+                                <View style={{ alignItems: 'center' }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#c62828' }} />
+                                        <Text style={{ fontSize: 12, color: '#666' }}>Pengeluaran</Text>
+                                    </View>
+                                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#c62828', marginTop: 4 }}>
+                                        {formatMoney(totalExpense)}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Line Chart */}
+                        <View style={{ width: screenWidth - 40, paddingVertical: 20, alignItems: 'center', justifyContent: 'center' }}>
+                            <LineChart
+                                data={chartData}
+                                color="#1a5dab" thickness={3}
+                                dataPointsColor="#1a5dab"
+                                startFillColor="#1a5dab"
+                                endFillColor="#1a5dab"
+                                startOpacity={0.2}
+                                endOpacity={0.0}
+                                areaChart
+                                curved
+                                hideRules
+                                yAxisTextStyle={{ fontSize: 10, color: '#666' }}
+                                formatYLabel={(value) => formatCompactNumber(parseFloat(value))}
+                                xAxisThickness={0}
+                                height={180}
+                                width={screenWidth - 80}
+                                adjustToWidth={true}
+                                initialSpacing={15}
+                                endSpacing={15}
+                                spacing={60}
+                                scrollToEnd
+                                noOfSections={4}
+                            />
+                        </View>
+                    </ScrollView>
                 </View>
                 {(userRole === 'admin' || userRole === 'finance') ? (
                     <>
@@ -503,10 +588,20 @@ const styles = StyleSheet.create({
     accountPillInactive: { backgroundColor: 'rgba(255,255,255,0.1)' },
     accountPillText: { fontSize: 12, fontWeight: 'bold' },
 
-    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 15 },
+    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 0 },
     chartContainer: {
-        backgroundColor: 'white', borderRadius: 15, padding: 20, marginBottom: 25,
+        backgroundColor: 'white', borderRadius: 15, paddingVertical: 20, marginBottom: 25,
         elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4
+    },
+    indicator: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#d0d0d0',
+    },
+    indicatorActive: {
+        backgroundColor: '#1a5dab',
+        width: 20,
     },
     grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     menuItem: {
