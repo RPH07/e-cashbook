@@ -19,7 +19,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.rajawali.ecashbook"
     },
     "web": {
       "output": "static",
@@ -44,13 +48,19 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Izinkan E-CashBook mengakses galeri untuk upload bukti transaksi.",
+          "photosPermission": "Izinkan E-CashBook mengakses galeri untuk upload bukti transaksi."
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "62bcd263-e82d-44bd-b3a2-271f197a2ad7"
+      }
     }
   }
 }
