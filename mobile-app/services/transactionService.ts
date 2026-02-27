@@ -61,8 +61,10 @@ export const transactionService = {
                 'transfer': 'transfer'
             };
 
+            const formattedDate = new Date(data.date).toISOString().split('T')[0];
+
             const payload: any = {
-                date: data.date,
+                date: formattedDate,
                 amount: Number(data.amount),
                 type: typeMap[data.type],
                 description: data.note,
@@ -102,8 +104,10 @@ export const transactionService = {
                 'transfer': 'transfer'
             };
 
+            const formattedDate = new Date(data.date).toISOString().split('T')[0];
+
             const payload: any = {
-                date: data.date,
+                date: formattedDate,
                 amount: Number(data.amount),
                 type: typeMap[data.type],
                 description: data.note,
