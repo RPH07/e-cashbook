@@ -2,7 +2,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { TransactionProvider } from "@/context/TransactionContext";
 import { useEffect, useState } from "react";
 import { authService } from "@/services/authService";
-import * as SecureStore from 'expo-secure-store';
+import {storage} from "@/services/storage";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function RootLayout() {
 
   const checkTokenAndNavigate = async () => {
     try {
-      const token = await SecureStore.getItemAsync('userToken');
+      const token = await storage.getItemAsync('userToken');
       
       if (!token) {
         const inAuthGroup = segments[0] === 'login';
